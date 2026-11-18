@@ -34,7 +34,8 @@ class CliOcr(OcrEngine):
     def extract(self, image_path: str) -> str:
         if "{image}" not in self.cmd_template:
             return ""
-        cmd = self.cmd_template.replace("{image}", image_path)
+        # 整体加引号:防止文件名里的 &、空格等把命令拆开
+        cmd = self.cmd_template.replace("{image}", f'"{image_path}"')
         try:
             proc = subprocess.run(
                 cmd,

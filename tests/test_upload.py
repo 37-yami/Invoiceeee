@@ -130,6 +130,24 @@ class TestUpload(UploadTestCase):
             self.assertTrue(Path(inv.original_path).exists(),
                             f"票据 {inv.id} 原图缺失")
 
+    def test_oversized_upload_rejected(self):
+        # 体积上限防御(LAN 模式),超限 413 且不入库
+        import http.client
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request(
+            "POST", "/api/upload", body=b"x",
+            headers={
+                "Content-Type": "multipart/form-data; boundary=x",
+                "Content-Length": str(30 * 1024 * 1024),
+            },
+        )
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 413)
+        resp.read()
+        conn.close()
+        self.assertEqual(len(self.db.list_invoices()), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

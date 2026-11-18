@@ -49,6 +49,18 @@ class TestStaticAndApi(ServerTestCase):
         with self.get("/static/style.css") as resp:
             self.assertEqual(resp.status, 200)
 
+    def test_static_traversal_blocked(self):
+        # 原始 ../ 路径(不经客户端归一化)不得越出 static/
+        import http.client
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request("GET", "/static/../server.py")
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 404)
+        body = resp.read()
+        self.assertNotIn(b"make_server", body)
+        conn.close()
+
     def test_api_invoices_empty_list(self):
         with self.get("/api/invoices") as resp:
             self.assertEqual(resp.status, 200)

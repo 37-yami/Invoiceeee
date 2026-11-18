@@ -18,6 +18,12 @@ class TestCliOcr(unittest.TestCase):
         self.assertIn("hello-from-ocr", text)
         self.assertIn("fake.png", text)  # 占位符确实被替换
 
+    def test_image_path_quoted_against_shell_split(self):
+        # 含 shell 元字符的路径必须整体加引号,不得拆成两条命令
+        engine = CliOcr("cmd /c echo {image}")
+        out = engine.extract("x & y.png")
+        self.assertEqual(out.strip(), '"x & y.png"')
+
     def test_nonzero_exit_returns_empty(self):
         engine = CliOcr("cmd /c exit 1")
         self.assertEqual(engine.extract("x.png"), "")

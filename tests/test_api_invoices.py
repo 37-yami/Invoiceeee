@@ -73,6 +73,17 @@ class TestPutInvoice(ApiTestCase):
         self.assertTrue(Path(row["archived_path"]).exists())
         self.assertIn("如家酒店", row["archived_path"])
 
+    def test_confirmed_cannot_revert_to_unknown_category(self):
+        inv = self.make_pending()
+        self.request("PUT", f"/api/invoices/{inv.id}",
+                     {"status": "confirmed"})
+        try:
+            self.request("PUT", f"/api/invoices/{inv.id}",
+                         {"category": "unknown"})
+            self.fail("应当 400")
+        except urllib.error.HTTPError as e:
+            self.assertEqual(e.code, 400)
+
     def test_put_missing_404(self):
         try:
             self.request("PUT", "/api/invoices/999", {"status": "confirmed"})

@@ -33,6 +33,7 @@ from core.workspace import Workspace
 
 STATIC_DIR = Path(__file__).parent / "static"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 单次上传体积上限
 
 
 def parse_multipart(body: bytes, content_type: str) -> list[tuple[str, str, bytes]]:
@@ -107,7 +108,7 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _serve_static(self, rel: str) -> None:
         target = (STATIC_DIR / rel).resolve()
-        if not str(target).startswith(str(STATIC_DIR.resolve())):
+        if not target.is_relative_to(STATIC_DIR.resolve()):
             self._send_json(404, {"error": "未找到"})
             return
         self._send_file(target)
@@ -401,15 +402,18 @@ class AppHandler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 self._send_json(400, {"error": "金额格式不正确"})
                 return
-        was_confirmed = inv.status == STATUS_CONFIRMED
         if "status" in body:
             if body["status"] == STATUS_CONFIRMED:
-                if inv.category == CATEGORY_UNKNOWN:
-                    self._send_json(400, {"error": "请先选择类别再确认"})
-                    return
                 inv.status = STATUS_CONFIRMED
             elif body["status"] == "pending":
                 inv.status = "pending"
+        # 已确认票据必须挂具体类别:文件已按类别归档,悬空会造成目录错位
+        if inv.status == STATUS_CONFIRMED and inv.category == CATEGORY_UNKNOWN:
+            self._send_json(
+                400,
+                {"error": "已确认票据需选择具体类别(不能为待定)"},
+            )
+            return
         # 确认或已确认记录字段变更 → (重新)归档
         if inv.status == STATUS_CONFIRMED and inv.category != CATEGORY_UNKNOWN:
             archive(self.ws, inv, self.db)
@@ -506,6 +510,12 @@ class AppHandler(BaseHTTPRequestHandler):
         return inv
 
     def _api_upload(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_UPLOAD_BYTES:
+            # 不读超限请求体,直接拒绝并断开(LAN 模式的防御上限)
+            self.close_connection = True
+            self._send_json(413, {"error": "上传内容过大,单次上限 20MB"})
+            return
         parts = parse_multipart(
             self._read_body(), self.headers.get("Content-Type", "")
         )
