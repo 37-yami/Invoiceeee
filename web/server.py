@@ -108,6 +108,34 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         self._send_file(target)
 
+    # ---- 访问码(LAN 模式) ----
+    OPEN_PATHS = ("/", "/api/access-info")
+
+    def _needs_gate(self, path: str) -> bool:
+        return not (path in self.OPEN_PATHS
+                    or path.startswith("/static/"))
+
+    def _check_access(self) -> bool:
+        """未启用访问码或本机回环 → 放行;其余需 X-Access-Code 或 ?code=。"""
+        if not self.access_code:
+            return True
+        ip = self.client_address[0]
+        if ip in ("127.0.0.1", "::1"):
+            return True
+        supplied = self.headers.get("X-Access-Code")
+        if not supplied:
+            supplied = parse_qs(urlparse(self.path).query).get(
+                "code", [None]
+            )[0]
+        return supplied == self.access_code
+
+    def _gate(self, path: str) -> bool:
+        """返回 False 表示已发送 401,调用方应立即 return。"""
+        if self._needs_gate(path) and not self._check_access():
+            self._send_json(401, {"error": "需要访问码"})
+            return False
+        return True
+
     # ---- 路由辅助 ----
     @staticmethod
     def _match_invoice_path(path: str):
@@ -129,12 +157,21 @@ class AppHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if not self._gate(path):
+                return
             if path == "/":
                 self._serve_static("index.html")
             elif path.startswith("/static/"):
                 self._serve_static(path[len("/static/"):])
             elif path == "/api/invoices":
                 self._api_list(parse_qs(parsed.query))
+            elif path == "/api/access-info":
+                self._send_json(200, {"require_code": bool(self.access_code)})
+            elif path == "/api/settings":
+                keys = ("default_name", "default_student_id",
+                        "default_project", "ocr_cmd")
+                self._send_json(200, {k: self.db.get_setting(k) or ""
+                                      for k in keys})
             elif path.startswith("/image/"):
                 self._serve_image(path)
             elif self._match_invoice_path(path):
@@ -187,6 +224,8 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         try:
+            if not self._gate(path):
+                return
             match = self._match_invoice_path(path)
             if path == "/api/upload":
                 self._api_upload()
@@ -203,9 +242,13 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         path = urlparse(self.path).path
         try:
+            if not self._gate(path):
+                return
             match = self._match_invoice_path(path)
             if match and match[1] is None:
                 self._api_update_invoice(match[0])
+            elif path == "/api/settings":
+                self._api_put_settings()
             else:
                 self._read_body()
                 self._send_json(404, {"error": "未找到"})
@@ -217,6 +260,8 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         path = urlparse(self.path).path
         try:
+            if not self._gate(path):
+                return
             match = self._match_invoice_path(path)
             if match and match[1] is None:
                 self._api_delete_invoice(match[0])
@@ -293,6 +338,20 @@ class AppHandler(BaseHTTPRequestHandler):
         self.db.update_invoice(inv)
         self.ws.log_action("force_keep", invoice_id=invoice_id)
         self._send_json(200, inv.to_dict())
+
+    def _api_put_settings(self):
+        body = self.read_json()
+        allowed = ("default_name", "default_student_id",
+                   "default_project", "ocr_cmd")
+        for key in allowed:
+            if key in body:
+                value = body[key]
+                self.db.set_setting(
+                    key, value.strip() if isinstance(value, str) else ""
+                )
+        self.ws.log_action("settings", changed=sorted(
+            k for k in body if k in allowed))
+        self._send_json(200, {"ok": True})
 
     def _ocr_engine(self):
         cmd = self.db.get_setting("ocr_cmd")
