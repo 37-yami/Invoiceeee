@@ -10,10 +10,12 @@ import email.policy
 import hashlib
 import json
 import mimetypes
+from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from core import report_csv, report_docx
 from core.archiver import archive, sanitize_filename, to_trash
 from core.classifier import classify, extract_fields
 from core.db import Database
@@ -229,6 +231,10 @@ class AppHandler(BaseHTTPRequestHandler):
             match = self._match_invoice_path(path)
             if path == "/api/upload":
                 self._api_upload()
+            elif path == "/api/report/preview":
+                self._api_report_preview()
+            elif path in ("/api/report/docx", "/api/report/csv"):
+                self._api_report_generate(path.rsplit("/", 1)[-1])
             elif match and match[1] == "force-keep":
                 self._api_force_keep(match[0])
             else:
@@ -238,6 +244,54 @@ class AppHandler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             self._send_json(500, {"error": f"服务错误: {e}"})
+
+    # ---- 报表 ----
+    def _report_meta(self, body: dict) -> dict:
+        """请求 meta 优先,缺项用设置页默认值。"""
+        meta = body.get("meta") or {}
+        return {
+            "name": meta.get("name")
+                or self.db.get_setting("default_name") or "",
+            "student_id": meta.get("student_id")
+                or self.db.get_setting("default_student_id") or "",
+            "project": meta.get("project")
+                or self.db.get_setting("default_project") or "",
+            "date_from": meta.get("date_from", ""),
+            "date_to": meta.get("date_to", ""),
+            "reason": meta.get("reason", ""),
+        }
+
+    def _api_report_preview(self):
+        body = self.read_json()
+        ids = body.get("ids") or []
+        invoices = self.db.invoices_by_ids(ids)
+        if not invoices:
+            self._send_json(400, {"error": "未选择票据"})
+            return
+        total = sum(
+            (Decimal(str(i.amount)) for i in invoices
+             if i.amount is not None),
+            Decimal("0"),
+        )
+        self._send_json(200, {
+            "count": len(invoices),
+            "total": f"{total:.2f}",
+            "items": [i.to_dict() for i in invoices],
+        })
+
+    def _api_report_generate(self, kind: str):
+        body = self.read_json()
+        invoices = self.db.invoices_by_ids(body.get("ids") or [])
+        if not invoices:
+            self._send_json(400, {"error": "未选择票据"})
+            return
+        meta = self._report_meta(body)
+        if kind == "docx":
+            out = report_docx.generate(self.ws, invoices, meta)
+        else:
+            out = report_csv.generate_csv(self.ws, invoices)
+        self.ws.log_action("report", kind=kind, count=len(invoices))
+        self._send_file(out, download_name=out.name)
 
     def do_PUT(self):
         path = urlparse(self.path).path

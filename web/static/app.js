@@ -19,6 +19,11 @@ function api(path, opts = {}) {
   }
   return fetch(path, Object.assign({}, opts, { headers })).then(async (r) => {
     if (r.status === 401) { showCodeDialog(); throw new Error("需要访问码"); }
+    const ct = r.headers.get("Content-Type") || "";
+    if (!ct.includes("application/json")) {
+      if (!r.ok) throw new Error("请求失败 " + r.status);
+      return r;  // 文件响应,调用方自行取 blob
+    }
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || ("请求失败 " + r.status));
     return data;
@@ -256,12 +261,54 @@ function updateSummary() {
 }
 $("f-apply").onclick = loadLibrary;
 
-// ---- 生成汇总单(预览/生成按钮在 M3 接入) ----
+// ---- 生成汇总单 ----
 function renderReport() {
   $("report-summary").textContent = S.selected.size
     ? `已选 ${S.selected.size} 张票据。填写下方信息后生成。`
     : "尚未勾选票据。";
 }
+function reportMeta() {
+  return {
+    name: $("m-name").value.trim(),
+    student_id: $("m-sid").value.trim(),
+    project: $("m-project").value.trim(),
+    date_from: $("m-from").value,
+    date_to: $("m-to").value,
+    reason: $("m-reason").value.trim(),
+  };
+}
+$("preview-btn").onclick = () => {
+  api("/api/report/preview", {
+    method: "POST",
+    body: JSON.stringify({ ids: [...S.selected] }),
+  })
+    .then((d) => msg("report-result",
+                     `共 ${d.count} 张,合计 ${d.total} 元`))
+    .catch((e) => msg("report-result", e.message, true));
+};
+function downloadReport(kind) {
+  api(`/api/report/${kind}`, {
+    method: "POST",
+    body: JSON.stringify({ ids: [...S.selected], meta: reportMeta() }),
+  })
+    .then((r) => {
+      let name = kind === "docx" ? "报销汇总单.docx" : "报销明细.csv";
+      const m = (r.headers.get("Content-Disposition") || "")
+        .match(/filename\*=UTF-8''([^;]+)/);
+      if (m) name = decodeURIComponent(m[1]);
+      return r.blob().then((b) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(b);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        msg("report-result", `已生成:${name}(工作区 exports/ 目录留有备份)`);
+      });
+    })
+    .catch((e) => msg("report-result", e.message, true));
+}
+$("docx-btn").onclick = () => downloadReport("docx");
+$("csv-btn").onclick = () => downloadReport("csv");
 
 // ---- 设置 ----
 function loadSettings() {
