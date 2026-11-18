@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from core.archiver import archive, sanitize_filename
+from core.archiver import archive, sanitize_filename, to_trash
 from core.classifier import classify, extract_fields
 from core.db import Database
 from core.duplicate import find_dup_of
@@ -108,6 +108,22 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         self._send_file(target)
 
+    # ---- 路由辅助 ----
+    @staticmethod
+    def _match_invoice_path(path: str):
+        """匹配 /api/invoices/{id} 与 /api/invoices/{id}/force-keep。"""
+        prefix = "/api/invoices/"
+        if not path.startswith(prefix):
+            return None
+        rest = path[len(prefix):]
+        if rest.endswith("/force-keep"):
+            action, rest = "force-keep", rest[: -len("/force-keep")]
+        else:
+            action = None
+        if not rest.isdigit():
+            return None
+        return int(rest), action
+
     # ---- GET ----
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -121,6 +137,13 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._api_list(parse_qs(parsed.query))
             elif path.startswith("/image/"):
                 self._serve_image(path)
+            elif self._match_invoice_path(path):
+                invoice_id, _ = self._match_invoice_path(path)
+                inv = self.db.get_invoice(invoice_id)
+                if inv:
+                    self._send_json(200, inv.to_dict())
+                else:
+                    self._send_json(404, {"error": "票据不存在"})
             else:
                 self._send_json(404, {"error": "未找到"})
         except (BrokenPipeError, ConnectionResetError):
@@ -160,19 +183,116 @@ class AppHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"error": "图片文件缺失"})
 
 
-    # ---- POST ----
+    # ---- POST / PUT / DELETE ----
     def do_POST(self):
         path = urlparse(self.path).path
         try:
+            match = self._match_invoice_path(path)
             if path == "/api/upload":
                 self._api_upload()
+            elif match and match[1] == "force-keep":
+                self._api_force_keep(match[0])
             else:
-                self._read_body()  # 消费请求体,保持连接状态干净
+                self._read_body()
                 self._send_json(404, {"error": "未找到"})
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception as e:
             self._send_json(500, {"error": f"服务错误: {e}"})
+
+    def do_PUT(self):
+        path = urlparse(self.path).path
+        try:
+            match = self._match_invoice_path(path)
+            if match and match[1] is None:
+                self._api_update_invoice(match[0])
+            else:
+                self._read_body()
+                self._send_json(404, {"error": "未找到"})
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            self._send_json(500, {"error": f"服务错误: {e}"})
+
+    def do_DELETE(self):
+        path = urlparse(self.path).path
+        try:
+            match = self._match_invoice_path(path)
+            if match and match[1] is None:
+                self._api_delete_invoice(match[0])
+            else:
+                self._read_body()
+                self._send_json(404, {"error": "未找到"})
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            self._send_json(500, {"error": f"服务错误: {e}"})
+
+    _EDITABLE_TEXT_FIELDS = (
+        "merchant", "invoice_no", "reimburse_by",
+        "project", "trip_reason", "note",
+    )
+
+    def _api_update_invoice(self, invoice_id: int):
+        inv = self.db.get_invoice(invoice_id)
+        if not inv:
+            self._send_json(404, {"error": "票据不存在"})
+            return
+        body = self.read_json()
+        for field in self._EDITABLE_TEXT_FIELDS:
+            if field in body:
+                value = body[field]
+                inv.__setattr__(
+                    field, value.strip() if isinstance(value, str) else ""
+                )
+        if "category" in body:
+            if body["category"] in CATEGORIES or body["category"] == CATEGORY_UNKNOWN:
+                inv.category = body["category"]
+        if "invoice_date" in body:
+            date = (body["invoice_date"] or "").strip()
+            inv.invoice_date = date if date else ""
+        if "amount" in body:
+            try:
+                inv.amount = None if body["amount"] in (None, "") \
+                    else float(body["amount"])
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "金额格式不正确"})
+                return
+        was_confirmed = inv.status == STATUS_CONFIRMED
+        if "status" in body:
+            if body["status"] == STATUS_CONFIRMED:
+                if inv.category == CATEGORY_UNKNOWN:
+                    self._send_json(400, {"error": "请先选择类别再确认"})
+                    return
+                inv.status = STATUS_CONFIRMED
+            elif body["status"] == "pending":
+                inv.status = "pending"
+        # 确认或已确认记录字段变更 → (重新)归档
+        if inv.status == STATUS_CONFIRMED and inv.category != CATEGORY_UNKNOWN:
+            archive(self.ws, inv, self.db)
+        self.db.update_invoice(inv)
+        self.ws.log_action("edit", invoice_id=inv.id, category=inv.category)
+        self._send_json(200, inv.to_dict())
+
+    def _api_delete_invoice(self, invoice_id: int):
+        inv = self.db.get_invoice(invoice_id)
+        if not inv:
+            self._send_json(404, {"error": "票据不存在"})
+            return
+        to_trash(self.ws, inv, self.db)
+        self.db.delete_invoice(invoice_id)
+        self.ws.log_action("delete", invoice_id=invoice_id)
+        self._send_json(200, {"ok": True})
+
+    def _api_force_keep(self, invoice_id: int):
+        inv = self.db.get_invoice(invoice_id)
+        if not inv:
+            self._send_json(404, {"error": "票据不存在"})
+            return
+        inv.dup_flag, inv.dup_of = 0, None
+        self.db.update_invoice(inv)
+        self.ws.log_action("force_keep", invoice_id=invoice_id)
+        self._send_json(200, inv.to_dict())
 
     def _ocr_engine(self):
         cmd = self.db.get_setting("ocr_cmd")
