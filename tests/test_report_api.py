@@ -37,8 +37,9 @@ class ReportApiTestCase(unittest.TestCase):
         self.server = make_server(self.ws, self.db, "127.0.0.1", 0)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        self.addCleanup(self.server.shutdown)
+        # LIFO:先 shutdown 停线程,再 server_close(顺序反了会 WinError 10038)
         self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
 
     def post(self, path: str, body: dict):
         req = urllib.request.Request(

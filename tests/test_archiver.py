@@ -87,6 +87,18 @@ class TestArchive(ArchiverTestCase):
         self.assertTrue(second.exists())
         self.assertIn("酒店住宿", second.as_posix())
 
+    def test_rearchive_unchanged_keeps_path(self):
+        # 已归档票据字段未变时再次保存:路径不变,不追加 _1 后缀
+        f = self.make_uploaded("a.jpg", b"data")
+        inv = self.db.insert_invoice(Invoice(
+            original_path=str(f), category="餐饮",
+            invoice_date="2026-11-02", merchant="小饭馆", amount=45.0))
+        first = archive(self.ws, inv, self.db)
+        second = archive(self.ws, inv, self.db)
+        self.assertEqual(first, second)
+        self.assertTrue(second.exists())
+        self.assertEqual(second.read_bytes(), b"data")
+
     def test_archive_conflict_appends_suffix(self):
         f = self.make_uploaded("a.jpg", b"new")
         inv = self.db.insert_invoice(Invoice(

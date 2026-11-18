@@ -27,8 +27,9 @@ class ServerTestCase(unittest.TestCase):
         self.port = self.server.server_address[1]
         t = threading.Thread(target=self.server.serve_forever, daemon=True)
         t.start()
-        self.addCleanup(self.server.shutdown)
+        # LIFO:先 shutdown 停线程,再 server_close(顺序反了会 WinError 10038)
         self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
 
     def get(self, path: str):
         return urllib.request.urlopen(

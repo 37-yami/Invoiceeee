@@ -27,8 +27,9 @@ class ApiTestCase(unittest.TestCase):
         self.server = make_server(self.ws, self.db, "127.0.0.1", 0)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        self.addCleanup(self.server.shutdown)
+        # LIFO:先 shutdown 停线程,再 server_close(顺序反了会 WinError 10038)
         self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
 
     def request(self, method: str, path: str, body: dict | None = None):
         data = json.dumps(body).encode() if body is not None else None
@@ -78,6 +79,24 @@ class TestPutInvoice(ApiTestCase):
             self.fail("应当 404")
         except urllib.error.HTTPError as e:
             self.assertEqual(e.code, 404)
+
+    def test_put_rejects_malformed_date(self):
+        # 非法日期会产生畸形归档路径,必须 400 拒绝;空串=清空日期,允许
+        inv = self.make_pending()
+        for bad in ("2026/11/18", "2026年11月18日", "18-11-2026", "x"):
+            with self.subTest(bad=bad):
+                try:
+                    self.request("PUT", f"/api/invoices/{inv.id}",
+                                 {"invoice_date": bad})
+                    self.fail(f"{bad} 应被拒绝")
+                except urllib.error.HTTPError as e:
+                    self.assertEqual(e.code, 400)
+        with self.request("PUT", f"/api/invoices/{inv.id}",
+                          {"invoice_date": "2026-11-18"}) as resp:
+            self.assertEqual(resp.status, 200)
+        with self.request("PUT", f"/api/invoices/{inv.id}",
+                          {"invoice_date": ""}) as resp:
+            self.assertEqual(resp.status, 200)
 
 
 class TestDeleteInvoice(ApiTestCase):

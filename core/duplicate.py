@@ -20,36 +20,37 @@ def normalize(s: str | None) -> str:
 
 def find_dup_of(db: Database, inv: Invoice) -> int | None:
     """返回疑似重复的最早记录 id;无则 None。排除自身。"""
-    conn = db.conn
+    with db.lock:  # 与 Database 其他方法共用一把锁,避免并发交错
+        conn = db.conn
 
-    if inv.file_hash:
-        row = conn.execute(
-            "SELECT id FROM invoices WHERE file_hash = ? AND id != ? "
-            "ORDER BY id LIMIT 1",
-            (inv.file_hash, inv.id),
-        ).fetchone()
-        if row:
-            return row["id"]
+        if inv.file_hash:
+            row = conn.execute(
+                "SELECT id FROM invoices WHERE file_hash = ? AND id != ? "
+                "ORDER BY id LIMIT 1",
+                (inv.file_hash, inv.id),
+            ).fetchone()
+            if row:
+                return row["id"]
 
-    if inv.invoice_no:
-        row = conn.execute(
-            "SELECT id FROM invoices WHERE invoice_no = ? AND id != ? "
-            "AND invoice_no IS NOT NULL ORDER BY id LIMIT 1",
-            (inv.invoice_no, inv.id),
-        ).fetchone()
-        if row:
-            return row["id"]
+        if inv.invoice_no:
+            row = conn.execute(
+                "SELECT id FROM invoices WHERE invoice_no = ? AND id != ? "
+                "AND invoice_no IS NOT NULL ORDER BY id LIMIT 1",
+                (inv.invoice_no, inv.id),
+            ).fetchone()
+            if row:
+                return row["id"]
 
-    if inv.invoice_date and inv.amount is not None and inv.merchant:
-        target = normalize(inv.merchant)
-        rows = conn.execute(
-            "SELECT id, merchant FROM invoices "
-            "WHERE invoice_date = ? AND amount = ? AND merchant IS NOT NULL "
-            "AND id != ? ORDER BY id",
-            (inv.invoice_date, inv.amount, inv.id),
-        ).fetchall()
-        for r in rows:
-            if normalize(r["merchant"]) == target:
-                return r["id"]
+        if inv.invoice_date and inv.amount is not None and inv.merchant:
+            target = normalize(inv.merchant)
+            rows = conn.execute(
+                "SELECT id, merchant FROM invoices "
+                "WHERE invoice_date = ? AND amount = ? AND merchant IS NOT NULL "
+                "AND id != ? ORDER BY id",
+                (inv.invoice_date, inv.amount, inv.id),
+            ).fetchall()
+            for r in rows:
+                if normalize(r["merchant"]) == target:
+                    return r["id"]
 
     return None

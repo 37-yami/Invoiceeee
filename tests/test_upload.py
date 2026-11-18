@@ -26,8 +26,9 @@ class UploadTestCase(unittest.TestCase):
         self.server = make_server(self.ws, self.db, "127.0.0.1", 0)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        self.addCleanup(self.server.shutdown)
+        # LIFO:先 shutdown 停线程,再 server_close(顺序反了会 WinError 10038)
         self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
 
     def post_multipart(self, parts: list[tuple[str, str, bytes, bool]]):
         """parts: (字段名, 文件名, 内容, 是否文件)"""
@@ -111,6 +112,23 @@ class TestUpload(UploadTestCase):
         ])
         self.assertEqual(len(rows), 1)
         self.assertTrue(rows[0]["original_path"].endswith(".png"))
+
+    def test_concurrent_uploads_all_succeed(self):
+        # LAN 场景:手机+电脑同时上传,不允许 500 或残留半成品记录
+        import concurrent.futures
+
+        def upload_one(i: int):
+            content = make_png(color=(i, 100 + i, 200 + i))
+            return i, self.upload_files([(f"批量{i}.png", content)])
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(upload_one, range(10)))
+        self.assertEqual([i for i, _ in results], list(range(10)))
+        rows = self.db.list_invoices()
+        self.assertEqual(len(rows), 10)
+        for inv in rows:  # 无半成品:原图文件都在
+            self.assertTrue(Path(inv.original_path).exists(),
+                            f"票据 {inv.id} 原图缺失")
 
 
 if __name__ == "__main__":

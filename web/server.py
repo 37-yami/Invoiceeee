@@ -8,8 +8,10 @@ from __future__ import annotations
 import email.parser
 import email.policy
 import hashlib
+import ipaddress
 import json
 import mimetypes
+import re
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -131,11 +133,50 @@ class AppHandler(BaseHTTPRequestHandler):
             )[0]
         return supplied == self.access_code
 
-    def _gate(self, path: str) -> bool:
-        """返回 False 表示已发送 401,调用方应立即 return。"""
-        if self._needs_gate(path) and not self._check_access():
-            self._send_json(401, {"error": "需要访问码"})
+    def _host_ok(self) -> bool:
+        """Host 头必须指向本机:回环名,或 LAN 模式下的 IP 字面量。
+
+        防 DNS rebinding:攻击者域名解析到 127.0.0.1 时,Host 是域名而非
+        回环名/IP 字面量,直接拒绝。
+        """
+        host = (self.headers.get("Host") or "").lower()
+        host = host.rsplit(":", 1)[0].strip("[]")
+        if host in ("127.0.0.1", "localhost", "::1"):
+            return True
+        if self.access_code:  # LAN 模式:手机直连本机局域网 IP
+            try:
+                ipaddress.ip_address(host)
+                return True
+            except ValueError:
+                return False
+        return False
+
+    def _origin_ok(self) -> bool:
+        """非 GET 请求的跨站防护(localhost CSRF)。
+
+        带 Origin 头则必须与 Host 同源;否则看 Sec-Fetch-Site;
+        两者都无(本地脚本/老工具)放行。
+        """
+        origin = self.headers.get("Origin")
+        if origin:
+            netloc = urlparse(origin).netloc.lower()
+            host_header = (self.headers.get("Host") or "").lower()
+            return netloc == host_header
+        site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+        return site != "cross-site"
+
+    def _gate(self, path: str, method: str = "GET") -> bool:
+        """返回 False 表示已发送错误响应,调用方应立即 return。"""
+        if not self._host_ok():  # Host 校验对所有路径生效(防 rebinding)
+            self._send_json(403, {"error": "拒绝访问"})
             return False
+        if self._needs_gate(path):
+            if not self._check_access():
+                self._send_json(401, {"error": "需要访问码"})
+                return False
+            if method != "GET" and not self._origin_ok():
+                self._send_json(403, {"error": "拒绝跨站请求"})
+                return False
         return True
 
     # ---- 路由辅助 ----
@@ -159,7 +200,7 @@ class AppHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if not self._gate(path):
+            if not self._gate(path, self.command):
                 return
             if path == "/":
                 self._serve_static("index.html")
@@ -226,7 +267,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         try:
-            if not self._gate(path):
+            if not self._gate(path, self.command):
                 return
             match = self._match_invoice_path(path)
             if path == "/api/upload":
@@ -296,7 +337,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         path = urlparse(self.path).path
         try:
-            if not self._gate(path):
+            if not self._gate(path, self.command):
                 return
             match = self._match_invoice_path(path)
             if match and match[1] is None:
@@ -314,7 +355,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         path = urlparse(self.path).path
         try:
-            if not self._gate(path):
+            if not self._gate(path, self.command):
                 return
             match = self._match_invoice_path(path)
             if match and match[1] is None:
@@ -349,7 +390,10 @@ class AppHandler(BaseHTTPRequestHandler):
                 inv.category = body["category"]
         if "invoice_date" in body:
             date = (body["invoice_date"] or "").strip()
-            inv.invoice_date = date if date else ""
+            if date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+                self._send_json(400, {"error": "日期格式应为 YYYY-MM-DD"})
+                return
+            inv.invoice_date = date
         if "amount" in body:
             try:
                 inv.amount = None if body["amount"] in (None, "") \

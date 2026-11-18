@@ -69,7 +69,13 @@ def archive(ws: Workspace, inv: Invoice, db: Database) -> Path:
         raise FileNotFoundError(
             f"票据 {inv.id} 的原图不存在: {inv.original_path}"
         )
-    target = _unique_path(archive_path(ws, inv))
+    target = archive_path(ws, inv)
+    if source.resolve() == target.resolve():
+        # 已归档且路径未变(如无变更保存):原地返回,不重复改名
+        inv.archived_path = str(target)
+        db.update_invoice(inv)
+        return target
+    target = _unique_path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source), str(target))
     inv.archived_path = str(target)

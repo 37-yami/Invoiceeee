@@ -66,8 +66,9 @@ class TestAccessInfoEndpoint(unittest.TestCase):
                              access_code="123456")
         port = server.server_address[1]
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
+        # LIFO:先 shutdown 停线程,再 server_close(顺序反了会 WinError 10038)
         self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
         return urllib.request.urlopen(
             f"http://127.0.0.1:{port}{path}", timeout=5
         )
