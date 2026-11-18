@@ -18,7 +18,10 @@ function api(path, opts = {}) {
     headers["Content-Type"] = "application/json";
   }
   return fetch(path, Object.assign({}, opts, { headers })).then(async (r) => {
-    if (r.status === 401) { showCodeDialog(); throw new Error("需要访问码"); }
+    if (r.status === 401) {
+      showCodeDialog("访问码不正确或已失效,请重新输入");
+      throw new Error("需要访问码");
+    }
     const ct = r.headers.get("Content-Type") || "";
     if (!ct.includes("application/json")) {
       if (!r.ok) throw new Error("请求失败 " + r.status);
@@ -46,12 +49,28 @@ function btn(text, onclick, cls) {
 }
 
 // ---- 访问码 ----
-function showCodeDialog() { $("code-dialog").hidden = false; }
+function showCodeDialog(message) {
+  $("code-error").textContent = message || "";
+  $("code-dialog").hidden = false;
+}
 $("code-submit").onclick = () => {
-  S.code = $("code-input").value.trim();
-  localStorage.setItem("bx-code", S.code);
-  $("code-dialog").hidden = true;
-  boot();
+  const attempt = $("code-input").value.trim();
+  if (!attempt) return;
+  // 先验证再收起:错码留在弹窗内提示,不再闪退复现
+  fetch("/api/invoices?status=pending", {
+    headers: { "X-Access-Code": attempt },
+  }).then((r) => {
+    if (r.status === 401) {
+      $("code-error").textContent = "访问码不正确,请重试";
+      return;
+    }
+    S.code = attempt;
+    localStorage.setItem("bx-code", S.code);
+    $("code-dialog").hidden = true;
+    boot();
+  }).catch(() => {
+    $("code-error").textContent = "无法连接服务";
+  });
 };
 
 // ---- 页签 ----

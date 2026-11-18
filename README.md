@@ -6,6 +6,8 @@
 
 ## 快速开始
 
+环境:Windows / macOS / Linux,Python 3.11+。
+
 ```bash
 pip install -r requirements.txt   # 仅 python-docx
 python app.py                     # 默认 http://127.0.0.1:8765
