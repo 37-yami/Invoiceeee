@@ -7,16 +7,28 @@ from __future__ import annotations
 
 import email.parser
 import email.policy
+import hashlib
 import json
 import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from core.archiver import archive, sanitize_filename
+from core.classifier import classify, extract_fields
 from core.db import Database
+from core.duplicate import find_dup_of
+from core.models import (
+    CATEGORIES,
+    CATEGORY_UNKNOWN,
+    STATUS_CONFIRMED,
+    Invoice,
+)
+from core.ocr import CliOcr, NoopOcr
 from core.workspace import Workspace
 
 STATIC_DIR = Path(__file__).parent / "static"
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def parse_multipart(body: bytes, content_type: str) -> list[tuple[str, str, bytes]]:
@@ -146,6 +158,98 @@ class AppHandler(BaseHTTPRequestHandler):
                     self._send_file(p)
                     return
         self._send_json(404, {"error": "图片文件缺失"})
+
+
+    # ---- POST ----
+    def do_POST(self):
+        path = urlparse(self.path).path
+        try:
+            if path == "/api/upload":
+                self._api_upload()
+            else:
+                self._read_body()  # 消费请求体,保持连接状态干净
+                self._send_json(404, {"error": "未找到"})
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            self._send_json(500, {"error": f"服务错误: {e}"})
+
+    def _ocr_engine(self):
+        cmd = self.db.get_setting("ocr_cmd")
+        return CliOcr(cmd) if cmd else NoopOcr()
+
+    def _create_invoice(self, filename: str, content: bytes,
+                        user_category: str | None) -> Invoice:
+        digest = hashlib.sha256(content).hexdigest()
+        ext = Path(filename).suffix.lower()
+        inv = self.db.insert_invoice(
+            Invoice(original_path="", file_hash=digest)
+        )
+        # 原图先存 uploads/,带 id 前缀防重名
+        safe = sanitize_filename(Path(filename).stem, maxlen=40)
+        saved = self.ws.uploads_dir / f"{inv.id}_{safe}{ext}"
+        saved.write_bytes(content)
+        inv.original_path = str(saved)
+
+        # 分类:用户显式选择 > OCR 文本 + 文件名关键词
+        text = self._ocr_engine().extract(str(saved))
+        if user_category in CATEGORIES:
+            category, confidence = user_category, 0.9
+        else:
+            category, confidence = classify(
+                f"{text} {Path(filename).stem}"
+            )
+        inv.category = category
+
+        # 字段只从 OCR 文本提取(文件名不可靠)
+        fields = extract_fields(text)
+        if fields["amount"] is not None:
+            inv.amount = fields["amount"]
+        if fields["date"]:
+            inv.invoice_date = fields["date"]
+        if fields["invoice_no"]:
+            inv.invoice_no = fields["invoice_no"]
+
+        dup = find_dup_of(self.db, inv)
+        if dup is not None:
+            inv.dup_flag, inv.dup_of = 1, dup
+
+        # 分类明确(用户选择或关键词命中)→ 立即按类别归档;
+        # 字段齐全才自动确认,否则留待确认队列
+        if category != CATEGORY_UNKNOWN:
+            archive(self.ws, inv, self.db)
+            if confidence >= 0.7 and (
+                inv.amount is not None or inv.invoice_date
+            ):
+                inv.status = STATUS_CONFIRMED
+        self.db.update_invoice(inv)
+        self.ws.log_action(
+            "upload", invoice_id=inv.id, category=inv.category
+        )
+        return inv
+
+    def _api_upload(self):
+        parts = parse_multipart(
+            self._read_body(), self.headers.get("Content-Type", "")
+        )
+        user_category = None
+        files: list[tuple[str, bytes]] = []
+        for name, filename, content in parts:
+            if name == "category" and not filename:
+                user_category = (
+                    content.decode("utf-8", "replace").strip() or None
+                )
+            elif name == "files" and filename:
+                files.append((filename, content))
+        results = []
+        for filename, content in files:
+            ext = Path(filename).suffix.lower()
+            if ext not in IMAGE_EXTS or not content:
+                continue  # 非图片或空文件:跳过,不报错
+            results.append(
+                self._create_invoice(filename, content, user_category)
+            )
+        self._send_json(200, {"invoices": [r.to_dict() for r in results]})
 
 
 def make_server(ws: Workspace, db: Database, host: str, port: int,

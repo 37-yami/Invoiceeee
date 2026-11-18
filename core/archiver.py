@@ -37,12 +37,14 @@ def _date_parts(inv: Invoice) -> tuple[str, str]:
 def archive_path(ws: Workspace, inv: Invoice) -> Path:
     month, yyyymmdd = _date_parts(inv)
     ext = Path(inv.original_path or inv.archived_path or "x.jpg").suffix or ".jpg"
+    # 类别名中的"/"(高铁/铁路)会变成嵌套目录,替换为"-"保持一类一目录
+    category_dir = sanitize_filename(inv.category.replace("/", "-"), maxlen=40)
     filename = (
         f"{yyyymmdd}_{sanitize_filename(inv.merchant)}"
         f"_{inv.amount if inv.amount is not None else 0:.2f}"
         f"_{inv.id or 0}{ext}"
     )
-    return ws.invoices_dir / month / inv.category / filename
+    return ws.invoices_dir / month / category_dir / filename
 
 
 def _unique_path(target: Path) -> Path:

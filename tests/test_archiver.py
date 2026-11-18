@@ -49,7 +49,7 @@ class TestArchivePath(ArchiverTestCase):
         p = archive_path(self.ws, inv)
         self.assertEqual(
             p.relative_to(self.ws.invoices_dir).as_posix(),
-            "2026-11/高铁/铁路/20261102_12306_553.00_7.jpg",
+            "2026-11/高铁-铁路/20261102_12306_553.00_7.jpg",
         )
 
     def test_defaults_when_fields_missing(self):
