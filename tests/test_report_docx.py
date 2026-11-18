@@ -80,6 +80,14 @@ class TestGenerateDocx(unittest.TestCase):
         with self.assertRaises(ValueError):
             generate(self.ws, [], self.meta)
 
+    def test_name_with_illegal_chars_still_generates(self):
+        # 姓名含 Windows 非法字符(如冒号)不应导致保存失败
+        meta = dict(self.meta, name="张三:2026级")
+        out = generate(self.ws, [make_invoice(1, 100.0)], meta)
+        self.assertTrue(out.exists())
+        self.assertEqual(out.name,
+                         "报销汇总单_张三2026级_20261101-20261118.docx")
+
 
 if __name__ == "__main__":
     unittest.main()

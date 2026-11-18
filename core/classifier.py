@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date as _date
 
 from core.models import CATEGORY_UNKNOWN
 
@@ -68,11 +69,13 @@ def _parse_amount(text: str) -> float | None:
 
 def _parse_date(text: str) -> str | None:
     for regex in _DATE_PATTERNS:
-        m = regex.search(text)
-        if m:
+        for m in regex.finditer(text):
             y, mo, d = (int(g) for g in m.groups())
-            if 1 <= mo <= 12 and 1 <= d <= 31:
-                return f"{y:04d}-{mo:02d}-{d:02d}"
+            try:  # 拒绝 2026-02-31 这类不存在的日期
+                _date(y, mo, d)
+            except ValueError:
+                continue
+            return f"{y:04d}-{mo:02d}-{d:02d}"
     return None
 
 

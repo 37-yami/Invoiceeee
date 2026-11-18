@@ -10,6 +10,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Pt
 
+from core.archiver import sanitize_filename
 from core.models import Invoice
 from core.workspace import Workspace
 
@@ -92,7 +93,7 @@ def generate(ws: Workspace, invoices: list[Invoice], meta: dict) -> Path:
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     _set_font(footer.add_run(FOOTER_NOTE), size=9)
 
-    filename = (f"报销汇总单_{meta.get('name', '未命名')}_"
+    filename = (f"报销汇总单_{sanitize_filename(meta.get('name', '未命名'))}_"
                 f"{date_from.replace('-', '')}-{date_to.replace('-', '')}.docx")
     ws.exports_dir.mkdir(exist_ok=True)
     out = ws.exports_dir / filename

@@ -330,7 +330,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if kind == "docx":
             out = report_docx.generate(self.ws, invoices, meta)
         else:
-            out = report_csv.generate_csv(self.ws, invoices)
+            out = report_csv.generate_csv(self.ws, invoices, meta)
         self.ws.log_action("report", kind=kind, count=len(invoices))
         self._send_file(out, download_name=out.name)
 

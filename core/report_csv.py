@@ -6,6 +6,7 @@ import csv
 from decimal import Decimal
 from pathlib import Path
 
+from core.archiver import sanitize_filename
 from core.models import Invoice
 from core.workspace import Workspace
 
@@ -16,11 +17,19 @@ def _money(value) -> str:
     return f"{Decimal(str(value)):.2f}" if value is not None else "0.00"
 
 
-def generate_csv(ws: Workspace, invoices: list[Invoice]) -> Path:
+def generate_csv(ws: Workspace, invoices: list[Invoice],
+                 meta: dict | None = None) -> Path:
     if not invoices:
         raise ValueError("未选择票据")
     ws.exports_dir.mkdir(exist_ok=True)
-    out = ws.exports_dir / "报销明细.csv"
+    name = "报销明细.csv"
+    if meta and meta.get("name"):
+        # 与 docx 同规则命名,不同批次互不覆盖
+        date_from = meta.get("date_from", "").replace("-", "")
+        date_to = meta.get("date_to", "").replace("-", "")
+        name = (f"报销明细_{sanitize_filename(meta['name'])}"
+                f"_{date_from}-{date_to}.csv")
+    out = ws.exports_dir / name
     total = Decimal("0")
     with open(out, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)

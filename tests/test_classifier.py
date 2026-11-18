@@ -64,6 +64,13 @@ class TestExtractFields(unittest.TestCase):
         # 短号码不当作发票号
         self.assertIsNone(extract_fields("号码:123")["invoice_no"])
 
+    def test_impossible_date_rejected(self):
+        # 2月31日不存在 → 不产出日期,而不是带病入库
+        self.assertIsNone(extract_fields("日期 2026年2月31日")["date"])
+        # 无效日期后若还有合法日期,取合法的
+        fields = extract_fields("2026年2月31日 与 2026-11-18 两天")
+        self.assertEqual(fields["date"], "2026-11-18")
+
 
 if __name__ == "__main__":
     unittest.main()

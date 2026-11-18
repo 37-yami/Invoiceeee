@@ -41,6 +41,19 @@ class TestGenerateCsv(unittest.TestCase):
         self.assertEqual(rows[3][3], "合计")
         self.assertEqual(rows[3][4], "1322.50")
 
+    def test_csv_named_by_meta_not_overwritten(self):
+        # 与 docx 同规则命名,不同批次互不覆盖;无 meta 时退回通用名
+        meta = dict(name="张三", date_from="2026-11-01",
+                    date_to="2026-11-18")
+        out = generate_csv(self.ws, self.invoices, meta)
+        self.assertEqual(out.name, "报销明细_张三_20261101-20261118.csv")
+        meta2 = dict(name="李四", date_from="2026-11-01",
+                     date_to="2026-11-18")
+        out2 = generate_csv(self.ws, self.invoices, meta2)
+        self.assertTrue(out.exists() and out2.exists())  # 两份并存
+        fallback = generate_csv(self.ws, self.invoices)
+        self.assertEqual(fallback.name, "报销明细.csv")
+
     def test_empty_invoices_raises(self):
         from core.report_csv import generate_csv as gc
         with self.assertRaises(ValueError):
