@@ -12,6 +12,8 @@ class SettingsDialog(tk.Toplevel):
         self.db = db
         self.title("设置")
         self.resizable(False, False)
+        self.transient(parent)
+        self.result = False
         frame = ttk.Frame(self)
         frame.pack(padx=14, pady=12)
 
@@ -42,5 +44,6 @@ class SettingsDialog(tk.Toplevel):
             ("ocr_cmd", self.e_ocr),
         ):
             self.db.set_setting(key, entry.get().strip())
+        self.result = True
         messagebox.showinfo("设置", "已保存", parent=self)
         self.destroy()

@@ -99,6 +99,7 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
 
         self.title("学生报销管家 · 本地运行,数据未离开本机")
         self.geometry("1150x700")
+        self.report_callback_exception = self._report_callback_exception
         self._build_toolbar()
         self._build_filters()
         self._build_tree()
@@ -120,6 +121,8 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
                    command=self._add_folder).pack(side="left", padx=6)
         ttk.Button(bar, text="重新识别待定",
                    command=self._reimport).pack(side="left")
+        ttk.Button(bar, text="打开工作区",
+                   command=self._open_workspace).pack(side="left", padx=6)
         ttk.Button(bar, text="设置",
                    command=self._open_settings).pack(side="right")
 
@@ -226,6 +229,25 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
                    command=self._export_csv).pack(side="right")
         ttk.Button(bar, text="生成汇总单",
                    command=self._open_report).pack(side="right", padx=6)
+
+    # ---------- 全局异常兜底 ----------
+    def _report_callback_exception(self, exc_type, exc_value, tb):
+        """Tk 回调里的未捕获异常:弹窗 + 状态栏提示,不再静默。"""
+        import traceback
+
+        detail = "".join(
+            traceback.format_exception(exc_type, exc_value, tb)
+        )[-900:]
+        self._status(f"出错了:{exc_value}")
+        try:
+            messagebox.showerror("出错了", detail, parent=self)
+        except Exception:
+            pass
+
+    def _open_workspace(self):
+        from gui.report_dialog import open_folder
+
+        open_folder(self.ws.root)
 
     # ---------- 列表刷新 ----------
     def _refresh(self):
@@ -454,16 +476,13 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
         self._start_import(files)
 
     def _on_drop(self, event):
-        paths = [Path(p) for p in self.tk.splitlist(event.data)]
-        paths = [p for p in paths
-                 if p.exists() and p.suffix.lower() in
-                 self.importer.IMAGE_EXTS
-                 or p.is_dir()]
-        files = []
-        for p in paths:
+        # 显式分支:目录递归导入,文件按扩展名校验
+        files: list[Path] = []
+        for raw in self.tk.splitlist(event.data):
+            p = Path(raw)
             if p.is_dir():
                 files.extend(self.importer.scan_folder(p))
-            else:
+            elif p.exists() and p.suffix.lower() in self.importer.IMAGE_EXTS:
                 files.append(p)
         if files:
             self._start_import(files)
@@ -535,4 +554,11 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
             ReportDialog(self, self.ws, self.db, invoices, kind="csv")
 
     def _open_settings(self):
-        SettingsDialog(self, self.db)
+        dialog = SettingsDialog(self, db=self.db)
+        dialog.transient(self)
+        dialog.grab_set()
+        self.wait_window(dialog)
+        if dialog.result:
+            # 设置可能改了 OCR 命令 → 热重载引擎,无需重启
+            self.importer = Importer(self.ws, self.db)
+            self._status("设置已保存,OCR 引擎已按新配置加载")

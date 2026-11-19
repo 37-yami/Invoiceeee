@@ -114,6 +114,19 @@ def main() -> None:
     assert len(list(ws.trash_dir.iterdir())) >= 1, "回收站应有文件"
     print("删除入回收站:OK")
 
+    # 6. 设置保存 → OCR 引擎热重载
+    from gui.settings_dialog import SettingsDialog
+
+    dialog3 = SettingsDialog(app, db)
+    dialog3.e_ocr.delete(0, "end")
+    dialog3.e_ocr.insert(0, "myocr {image}")
+    dialog3._save()
+    app._open_settings_check = None
+    from core.ocr import CliOcr
+
+    assert isinstance(app.importer.engine, CliOcr), "设置保存后引擎应热重载"
+    print("设置热重载:OK")
+
     app.destroy()
     db.close()
     shutil.rmtree(td)

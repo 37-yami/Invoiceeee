@@ -16,8 +16,8 @@ from core.models import Invoice
 from core.workspace import Workspace
 
 
-def _open_folder(path: Path) -> None:
-    """跨平台打开导出目录。"""
+def open_folder(path: Path) -> None:
+    """跨平台打开目录。"""
     if sys.platform == "win32":
         os.startfile(path)  # noqa: S606 - 用户主动点击
     elif sys.platform == "darwin":
@@ -110,5 +110,5 @@ class ReportDialog(tk.Toplevel):
         if messagebox.askyesno(
             "完成", f"已生成:\n{out}\n\n打开导出文件夹?", parent=self,
         ):
-            _open_folder(out.parent)
+            open_folder(out.parent)
         self.destroy()
