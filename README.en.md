@@ -1,0 +1,77 @@
+# Student Reimbursement Manager (学生报销管家)
+
+[中文](README.md)
+
+A local desktop tool: import receipt photos/scans → auto-recognize content and categorize → select and generate a formal reimbursement summary (.docx / CSV).
+
+Fully local, no accounts, privacy first: all data stays in your own workspace folder — no network, no uploads by default.
+
+## Quick Start
+
+Requires Windows / macOS / Linux with Python 3.11+ (tkinter ships with Python on Windows).
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+On first launch you pick (or create) a workspace folder; it is remembered afterwards.
+
+- `python app.py --workspace D:\reimburse` to specify a workspace directly
+- Local OCR enables automatically once `rapidocr-onnxruntime` is installed; the app works without it (see below)
+
+## Workflow (two steps)
+
+1. **Import**: click "添加票据图片" to multi-select files, or "导入文件夹" to import a folder recursively, or just drag files into the window. The tool reads content, recognizes category and amount/date/invoice number; anything unrecognized goes to the pending queue (yellow rows).
+2. **Summarize**: filter by date/category/keyword, multi-select rows as your pick set — the status bar shows count and total live; click "生成汇总单", fill in the claimant info, preview, and generate the docx (or "导出 CSV").
+
+Every automatic result can be corrected in the edit panel: select one row → edit fields → "保存" or "确认归档". Duplicates (same file / invoice number / date+amount+merchant) are flagged; "强制保留" keeps them. Deleting only moves originals into the workspace `.trash/` folder.
+
+## Image formats
+
+Supports `.jpg .jpeg .png .webp .bmp .tif .tiff .gif`.
+
+## OCR (content-based recognition)
+
+- With `rapidocr-onnxruntime` installed (included in requirements.txt): text is recognized locally on import → keyword classification (railway / flight / hotel / ride-hailing / taxi / dining) + regex extraction of amount, date, and invoice number.
+- Without it: falls back to filename keyword rules (e.g. a filename containing "12306" is filed as railway); everything else goes to the pending queue. **Import is never blocked.**
+- You can also configure an external OCR command template (with a `{image}` placeholder) in Settings; an explicit command takes priority over RapidOCR.
+
+## Workspace layout
+
+```
+workspace/
+├── data.db        # SQLite index (images are not stored here)
+├── uploads/       # imported originals (moved away after confirmation)
+├── invoices/      # archived receipts: YYYY-MM/category/YYYYMMDD_merchant_amount_id.img
+├── exports/       # generated summaries and CSV files
+├── logs/app.log   # action log (actions and metadata only)
+└── .trash/        # recycle bin for deleted originals
+```
+
+## Backup & migration
+
+Copy the whole workspace folder to back up. Move it to another machine and run `python app.py --workspace <path>` to continue. Every original can be found under `invoices/` as `month/category/date_merchant_amount`.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -v   # unit and pipeline tests
+python tools/smoke_gui.py                 # automated end-to-end GUI smoke
+```
+
+## Samples
+
+`samples/` contains a complete demo workspace and a generated summary; regenerate with `python tools/make_samples.py`.
+
+## Known limitations
+
+- HEIC (iPhone native format) is not supported yet; convert to JPG first.
+- Duplicate detection is exact-match (hash / invoice number / date+amount+merchant); no fuzzy matching.
+- Single user on one machine; no accounts, sync, or cloud services.
+- Amounts use two decimals; no Chinese-uppercase amounts; no embedded thumbnails in the summary.
+- GUI interaction itself is manually verified (logic layer has 71 tests plus a smoke script).
+
+## Project status
+
+P0 (including the GUI upgrade) is complete. The project is closed — no maintenance debt.
