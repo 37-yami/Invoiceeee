@@ -123,6 +123,8 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
                    command=self._reimport).pack(side="left")
         ttk.Button(bar, text="打开工作区",
                    command=self._open_workspace).pack(side="left", padx=6)
+        ttk.Button(bar, text="统计",
+                   command=self._open_stats).pack(side="left")
         ttk.Button(bar, text="设置",
                    command=self._open_settings).pack(side="right")
 
@@ -249,18 +251,26 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
 
         open_folder(self.ws.root)
 
+    def _open_stats(self):
+        from gui.stats_dialog import StatsDialog
+
+        StatsDialog(self, self._filtered_rows())
+
     # ---------- 列表刷新 ----------
-    def _refresh(self):
+    def _filtered_rows(self):
         status = {"全部状态": None, "待确认": "pending",
                   "已确认": "confirmed"}[self.f_status.get()]
         category = self.f_category.get()
-        rows = self.db.list_invoices(
+        return self.db.list_invoices(
             status=status,
             category=None if category == "全部类别" else category,
             date_from=self.f_from.get().strip() or None,
             date_to=self.f_to.get().strip() or None,
             q=self.f_q.get().strip() or None,
         )
+
+    def _refresh(self):
+        rows = self._filtered_rows()
         self.tree.delete(*self.tree.get_children())
         self._invoices = {r.id: r for r in rows}
         for r in rows:

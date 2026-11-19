@@ -131,6 +131,16 @@ def main() -> None:
     assert isinstance(app.importer.engine, CliOcr), "设置保存后引擎应热重载"
     print("设置热重载:OK")
 
+    # 7. 统计面板(当前筛选结果)
+    from gui.stats_dialog import StatsDialog
+
+    stats = StatsDialog(app, app._filtered_rows())
+    content = stats.text.get("1.0", "end")
+    stats.destroy()
+    assert "共 3 张" in content, f"统计应含 3 张: {content}"
+    assert "按类别" in content
+    print("统计面板:OK")
+
     app.destroy()
     db.close()
     shutil.rmtree(td)
