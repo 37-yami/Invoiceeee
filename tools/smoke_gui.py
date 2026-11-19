@@ -114,14 +114,18 @@ def main() -> None:
     assert len(list(ws.trash_dir.iterdir())) >= 1, "回收站应有文件"
     print("删除入回收站:OK")
 
-    # 6. 设置保存 → OCR 引擎热重载
+    # 6. 设置保存 → OCR 引擎热重载(走真正的 _open_settings 路径)
     from gui.settings_dialog import SettingsDialog
 
-    dialog3 = SettingsDialog(app, db)
-    dialog3.e_ocr.delete(0, "end")
-    dialog3.e_ocr.insert(0, "myocr {image}")
-    dialog3._save()
-    app._open_settings_check = None
+    def fill_and_save_dialog():
+        for child in app.winfo_children():
+            if isinstance(child, SettingsDialog):
+                child.e_ocr.delete(0, "end")
+                child.e_ocr.insert(0, "myocr {image}")
+                child._save()
+
+    app.after(100, fill_and_save_dialog)
+    app._open_settings()  # wait_window 阻塞,期间上面的定时任务关闭对话框
     from core.ocr import CliOcr
 
     assert isinstance(app.importer.engine, CliOcr), "设置保存后引擎应热重载"
