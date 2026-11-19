@@ -22,19 +22,20 @@ On first launch you pick (or create) a workspace folder; it is remembered afterw
 
 ## Workflow (two steps)
 
-1. **Import**: click "添加票据图片" to multi-select files, or "导入文件夹" to import a folder recursively, or just drag files into the window. The tool reads content, recognizes category and amount/date/invoice number; anything unrecognized goes to the pending queue (yellow rows).
-2. **Summarize**: filter by date/category/keyword, multi-select rows as your pick set — the status bar shows count and total live; click "生成汇总单", fill in the claimant info, preview, and generate the docx (or "导出 CSV").
+1. **Import**: click "添加票据图片" to multi-select files, or "导入文件夹" to import a folder recursively, or just drag files into the window. The tool reads content automatically — text PDFs are extracted directly, images go through local OCR — and recognizes category, amount, date, and invoice number. Anything unrecognized goes to the pending queue (yellow rows).
+2. **Summarize**: filter by date/category/keyword and multi-select rows as your pick set — the status bar shows count and total live; "统计" opens per-category totals of the current filter; click "生成汇总单", fill in the claimant info, preview, and generate the docx (or "导出 CSV").
 
 Every automatic result can be corrected in the edit panel: select one row → edit fields → "保存" or "确认归档". Duplicates (same file / invoice number / date+amount+merchant) are flagged; "强制保留" keeps them. Deleting only moves originals into the workspace `.trash/` folder.
 
-## Image formats
+## Receipt formats
 
-Supports `.jpg .jpeg .png .webp .bmp .tif .tiff .gif`.
+Images `.jpg .jpeg .png .webp .bmp .tif .tiff .gif`, plus PDF e-invoices (text PDFs are extracted directly — no OCR needed; scanned PDFs are rendered and go through OCR).
 
 ## OCR (content-based recognition)
 
 - With `rapidocr-onnxruntime` installed (included in requirements.txt): text is recognized locally on import → keyword classification (railway / flight / hotel / ride-hailing / taxi / dining) + regex extraction of amount, date, and invoice number.
 - Without it: falls back to filename keyword rules (e.g. a filename containing "12306" is filed as railway); everything else goes to the pending queue. **Import is never blocked.**
+- Auto-confirmation requires a recognized **amount**; date-only explanation documents stay pending for manual review.
 - You can also configure an external OCR command template (with a `{image}` placeholder) in Settings; an explicit command takes priority over RapidOCR.
 
 ## Workspace layout
