@@ -350,7 +350,12 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
             self.preview.config(image="", text="图片文件缺失")
             return
         try:
-            img = Image.open(path)
+            if path.lower().endswith(".pdf"):
+                from core import invoice_pdf
+
+                img = invoice_pdf.render_page(path)
+            else:
+                img = Image.open(path)
             img.thumbnail((300, 200))
             self._photo = ImageTk.PhotoImage(img)
             self.preview.config(image=self._photo, text="")
@@ -457,9 +462,10 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
     # ---------- 导入 ----------
     def _add_files(self):
         paths = filedialog.askopenfilenames(
-            title="选择票据图片(可多选)",
+            title="选择票据图片或 PDF(可多选)",
             filetypes=[(
-                "图片", "*.jpg *.jpeg *.png *.webp *.bmp *.tif *.tiff *.gif"
+                "票据", "*.jpg *.jpeg *.png *.webp *.bmp *.tif *.tiff"
+                        " *.gif *.pdf"
             ), ("所有文件", "*.*")],
         )
         if paths:
@@ -482,7 +488,7 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
             p = Path(raw)
             if p.is_dir():
                 files.extend(self.importer.scan_folder(p))
-            elif p.exists() and p.suffix.lower() in self.importer.IMAGE_EXTS:
+            elif p.exists() and p.suffix.lower() in self.importer.ACCEPTED_EXTS:
                 files.append(p)
         if files:
             self._start_import(files)

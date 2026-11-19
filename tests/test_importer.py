@@ -76,6 +76,45 @@ class TestImportFiles(ImporterTestCase):
         self.assertEqual(r.invoice_no, "042001900111")
         self.assertTrue(Path(r.archived_path).exists())
 
+    def test_no_amount_stays_pending(self):
+        # 有类别有日期但没金额:不自动确认(报销核心是金额,留给人工)
+        from core.ocr import NoopOcr
+
+        class DateOnlyEngine(OcrEngine):
+            def extract(self, image_path: str) -> str:
+                return "改签说明 出行日期 2026-09-20 车票 高铁"
+
+        imp = Importer(self.ws, self.db, engine=DateOnlyEngine())
+        rows = imp.import_files([self.source_file("a.png")])
+        self.assertEqual(rows[0].category, "高铁/铁路")
+        self.assertEqual(rows[0].status, "pending")
+        self.assertIsNone(rows[0].amount)
+
+    def test_filename_anchored_invoice_no(self):
+        # Review Focus:PDF 文本里标签与号码不相邻时,
+        # 文件名中的 15-20 位号码若在正文出现,才采用(防张冠李戴)
+        from core.ocr import NoopOcr
+
+        imp = Importer(self.ws, self.db, engine=NoopOcr())
+        f = self.source_file(
+            "dzfp_26522000000981502111_某某研究所.pdf", b"pdf")
+        rows = imp.import_files([f])
+        # 内容里没有号码(空 OCR),文件名锚定不应采用 → 保持空
+        self.assertEqual(rows[0].invoice_no, "")
+
+        # 内容里确实出现该号码 → 采用(用真实生成的 PDF,正文无"号码"标签)
+        from core.ocr import NoopOcr as _Noop
+        from tests.test_invoice_pdf import make_text_pdf
+
+        imp2 = Importer(self.ws, self.db, engine=_Noop())
+        f2 = self.source_file(
+            "dzfp_26522000000981502111_某某研究所2.pdf")
+        make_text_pdf(f2, ["电子发票 某某研究所",
+                           "26522000000981502111",
+                           "2026-09-21"])
+        rows2 = imp2.import_files([f2])
+        self.assertEqual(rows2[0].invoice_no, "26522000000981502111")
+
     def test_reimport_same_content_flagged_duplicate(self):
         content = make_png(color=(9, 9, 9))
         imp = Importer(self.ws, self.db)
@@ -120,7 +159,7 @@ class TestImportFiles(ImporterTestCase):
 
 class TestScanFolder(ImporterTestCase):
     def test_recursive_only_images_deduped(self):
-        # Review Focus:子目录递归、非图片过滤、按绝对路径去重
+        # Review Focus:子目录递归、非票据过滤、按绝对路径去重(PDF 也是票据)
         (self.td / "票" / "sub").mkdir(parents=True)
         (self.td / "票" / "1.png").write_bytes(make_png(color=(1, 1, 1)))
         (self.td / "票" / "sub" / "2.jpg").write_bytes(b"j")
@@ -129,7 +168,7 @@ class TestScanFolder(ImporterTestCase):
         imp = Importer(self.ws, self.db)
         found = imp.scan_folder(self.td / "票")
         self.assertEqual(
-            sorted(p.name for p in found), ["1.png", "2.jpg"]
+            sorted(p.name for p in found), ["1.png", "2.jpg", "3.pdf"]
         )
 
     def test_missing_folder_returns_empty(self):

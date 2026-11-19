@@ -71,6 +71,32 @@ class TestExtractFields(unittest.TestCase):
         fields = extract_fields("2026年2月31日 与 2026-11-18 两天")
         self.assertEqual(fields["date"], "2026-11-18")
 
+    def test_spaced_text_still_matches(self):
+        # 真实 PDF/OCR 文本常在字符间夹空白:关键词、号码、日期都要扛住
+        self.assertEqual(classify("滴 滴 出 行\n行程单")[0], "网约车")
+        fields = extract_fields(
+            "发 票 号 码 : 2 6 5 2 2 0 0 0 0 0 0 9 8 1 5 0 2 1 1 1"
+            " 2026 年 9 月 21 日")
+        self.assertEqual(fields["invoice_no"], "26522000000981502111")
+        self.assertEqual(fields["date"], "2026-09-21")
+
+    def test_amount_xiaoxie_takes_priority(self):
+        # 真实版式:合计独占一行、¥ 在数字后;税额 ¥2.84 不得冒充合计
+        text = ("价税合计（大写）\n（小写）\n97.60\n¥\n玖拾柒圆陆角整\n"
+                "税额¥2.84\n金额108.93")
+        self.assertEqual(extract_fields(text)["amount"], 97.6)
+
+    def test_amount_xiaoxie_inline_with_yuan(self):
+        self.assertEqual(
+            extract_fields("（小写）¥358.00 开票日期:2026年11月02日")["amount"],
+            358.0)
+
+    def test_amount_jiashuiheji_context_still_works(self):
+        # 无(小写)标签时,价税合计语境优先于金额列
+        self.assertEqual(
+            extract_fields("金额108.93 价税合计 ¥123.00 税额 ¥3.57")["amount"],
+            123.0)
+
 
 if __name__ == "__main__":
     unittest.main()

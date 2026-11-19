@@ -28,7 +28,13 @@ CONFIDENCE_NONE = 0.0
 # 金额:¥/￥ 前缀 或 数字后接"元";支持千分位
 _AMOUNT_CURRENCY = re.compile(r"[¥￥]\s*([0-9][0-9,]*(?:\.\d{1,2})?)")
 _AMOUNT_YUAN = re.compile(r"([0-9][0-9,]*(?:\.\d{1,2})?)\s*元")
-_AMOUNT_CONTEXT = ("价税合计", "合计", "金额")
+# 电子发票标配:（小写）后紧跟总价,是最可靠的金额来源
+_AMOUNT_XIAOXIE = re.compile(
+    r"(?:（小写）|\(小写\)|小写)[:：）]?\s*[¥￥]?"
+    r"([0-9][0-9,]*(?:\.\d{1,2})?)")
+_AMOUNT_CONTEXT_JIASHUI = "价税合计"
+_AMOUNT_CONTEXT_HEJI = ("合计", "小写")
+_AMOUNT_CONTEXT_JINE = "金额"
 
 # 日期:三种写法归一化 YYYY-MM-DD
 _DATE_PATTERNS = [
@@ -41,30 +47,53 @@ _DATE_PATTERNS = [
 _INVOICE_NO = re.compile(r"(?:发票号码|发票号|号码)[:：]?\s*(\d{8,20})")
 
 
+def _squash(text: str) -> str:
+    """去掉全部空白:真实 PDF/OCR 文本常在字符间夹换行与空格。"""
+    return re.sub(r"\s+", "", text)
+
+
 def classify(text: str) -> tuple[str, float]:
-    """按关键词组分类;返回 (类别, 置信度)。"""
+    """按关键词组分类;原文与去空白文本都参与匹配。"""
+    raw = text or ""
+    norm = _squash(raw)
     for category, keywords in _RULES:
         for kw in keywords:
-            if kw in text:
+            if kw in raw or kw in norm:
                 return category, CONFIDENCE_MATCH
     return CATEGORY_UNKNOWN, CONFIDENCE_NONE
 
 
-def _parse_amount(text: str) -> float | None:
-    """优先取"合计/金额"语境下的数,否则取最大值。"""
-    matches: list[tuple[float, bool]] = []  # (数值, 是否有语境)
+def _parse_amount(raw: str, norm: str) -> float | None:
+    """金额多级判定:（小写）> 价税合计语境 > 合计/金额语境 > 兜底最大值。
+
+    税额常以"¥数字"出现且数值更小,不能仅靠"带语境取最大"。
+    """
+    for source in (raw, norm):
+        m = _AMOUNT_XIAOXIE.search(source)
+        if m:
+            return float(m.group(1).replace(",", ""))
+
+    candidates: list[tuple[float, int]] = []  # (数值, 语境层级 1-4)
     for regex in (_AMOUNT_CURRENCY, _AMOUNT_YUAN):
-        for m in regex.finditer(text):
+        for m in regex.finditer(raw):
             value = float(m.group(1).replace(",", ""))
-            start = max(0, m.start() - 8)
-            has_context = any(c in text[start:m.start()]
-                              for c in _AMOUNT_CONTEXT)
-            matches.append((value, has_context))
-    if not matches:
+            window = raw[max(0, m.start() - 12): m.start()]
+            if _AMOUNT_CONTEXT_JIASHUI in window:
+                tier = 1
+            elif any(c in window for c in _AMOUNT_CONTEXT_HEJI):
+                tier = 2
+            elif _AMOUNT_CONTEXT_JINE in window:
+                tier = 3
+            else:
+                tier = 4
+            candidates.append((value, tier))
+    if not candidates:
         return None
-    with_context = [v for v, c in matches if c]
-    pool = with_context or [v for v, _ in matches]
-    return max(pool)
+    for tier in (1, 2, 3):
+        pool = [v for v, t in candidates if t == tier]
+        if pool:
+            return max(pool)
+    return max(v for v, _ in candidates)
 
 
 def _parse_date(text: str) -> str | None:
@@ -80,10 +109,15 @@ def _parse_date(text: str) -> str | None:
 
 
 def extract_fields(text: str) -> dict:
-    """从 OCR 文本提取金额/日期/发票号;无则 None。"""
-    m = _INVOICE_NO.search(text)
+    """从票据文本提取金额/日期/发票号;无则 None。
+
+    原文匹配失败时,用去空白文本兜底(跨行/夹空格版式)。
+    """
+    raw = text or ""
+    norm = _squash(raw)
+    m = _INVOICE_NO.search(raw) or _INVOICE_NO.search(norm)
     return {
-        "amount": _parse_amount(text),
-        "date": _parse_date(text),
+        "amount": _parse_amount(raw, norm),
+        "date": _parse_date(raw) or _parse_date(norm),
         "invoice_no": m.group(1) if m else None,
     }
