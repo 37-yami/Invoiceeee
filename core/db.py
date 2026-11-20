@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+CREATE TABLE IF NOT EXISTS learned_rules (
+    keyword  TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    hits     INTEGER NOT NULL DEFAULT 1
+);
 """
 
 

@@ -15,6 +15,7 @@ from core.archiver import archive, sanitize_filename
 from core.classifier import classify, extract_fields
 from core.db import Database
 from core.duplicate import find_dup_of
+from core.learned import learned_lookup, learned_upsert
 from core.models import (
     CATEGORIES,
     CATEGORY_UNKNOWN,
@@ -96,13 +97,22 @@ class Importer:
 
     def _recognize(self, inv: Invoice, filename_stem: str,
                    user_category: str | None = None) -> None:
-        """分类 + 字段提取 + 重复检测 + 归档决策(就地修改 inv)。"""
+        """分类 + 字段提取 + 重复检测 + 归档决策(就地修改 inv)。
+
+        识别优先级:用户显式选择(0.9)> 学到的商户规则(0.9,
+        来自历史人工确认)> 关键词规则(0.7)> 文件名兜底。
+        """
         text = self._extract_text(Path(inv.original_path or ""))
+        text_norm = re.sub(r"\s+", "", text)
         if user_category in CATEGORIES:
             category, confidence = user_category, 0.9
         else:
             # OCR 文本在前、文件名在后:内容优先,文件名兜底
-            category, confidence = classify(f"{text} {filename_stem}")
+            learned = learned_lookup(self.db, text_norm)
+            if learned is not None:
+                category, confidence = learned
+            else:
+                category, confidence = classify(f"{text} {filename_stem}")
         inv.category = category
 
         fields = extract_fields(text)  # 字段只认文本内容,文件名不可靠

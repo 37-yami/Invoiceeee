@@ -25,7 +25,37 @@ On first launch you pick (or create) a workspace folder; it is remembered afterw
 1. **Import**: click "添加票据图片" to multi-select files, or "导入文件夹" to import a folder recursively, or just drag files into the window. The tool reads content automatically — text PDFs are extracted directly, images go through local OCR — and recognizes category, amount, date, and invoice number. Anything unrecognized goes to the pending queue (yellow rows).
 2. **Summarize**: filter by date/category/keyword and multi-select rows as your pick set — the status bar shows count and total live; "统计" opens per-category totals of the current filter; click "生成汇总单", fill in the claimant info, preview, and generate the docx (or "导出 CSV").
 
-Every automatic result can be corrected in the edit panel: select one row → edit fields → "保存" or "确认归档". Duplicates (same file / invoice number / date+amount+merchant) are flagged; "强制保留" keeps them. Deleting only moves originals into the workspace `.trash/` folder.
+Every automatic result can be corrected in the edit panel. Confirming **learns a merchant→category rule** (a "learn" loop borrowed from knowledge-ontology tooling): confirm "汉庭" once as hotel lodging and future receipts mentioning 汉庭 classify automatically even without keyword hits. Duplicates (same file / invoice number / date+amount+merchant) are flagged; "强制保留" keeps them. Deleting only moves originals into the workspace `.trash/` folder.
+
+## AI Agent access (MCP)
+
+A dependency-free MCP server (`mcp_server.py`) lets opencode, Claude Desktop, Cursor or any MCP client query your local receipts, view stats, and generate summaries in natural language. The LLM lives on the client side; data never leaves your machine.
+
+opencode (`~/.config/opencode/opencode.json`):
+
+```json
+{
+  "mcp": {
+    "baoxiao": {
+      "type": "local",
+      "command": ["python", "E:\\path\\to\\Invoiceeee\\mcp_server.py"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "baoxiao": {"command": "python", "args": ["E:\\path\\to\\Invoiceeee\\mcp_server.py"]}
+  }
+}
+```
+
+Workspace resolution: `BAOXIAO_WORKSPACE` env var > the folder last opened in the GUI.
 
 ## Receipt formats
 

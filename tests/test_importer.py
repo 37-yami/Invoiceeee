@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from core.db import Database
+from core.learned import learned_upsert
 from core.models import Invoice
 from core.ocr import OcrEngine
 from core.workspace import Workspace
@@ -190,6 +191,25 @@ class TestReimportUnknown(ImporterTestCase):
         self.assertEqual(len(updated), 1)
         self.assertEqual(updated[0].category, "酒店住宿")
         self.assertEqual(updated[0].status, "confirmed")
+
+
+    def test_learned_rule_applies_on_import(self):
+        # 人工确认沉淀的"商户→类别"规则,优先于关键词规则:
+        # "汉庭"不在内置关键词里,只有学习规则能归类它
+        from core.ocr import NoopOcr
+
+        learned_upsert(self.db, "汉庭", "酒店住宿")
+
+        class PlainEngine(OcrEngine):
+            def extract(self, image_path: str) -> str:
+                # 不含任何内置关键词(酒店/住宿不在文本里)
+                return "客账单 汉庭 房费 ¥199.00 2026-11-03"
+
+        imp = Importer(self.ws, self.db, engine=PlainEngine())
+        rows = imp.import_files([self.source_file("账单.png")])
+        self.assertEqual(rows[0].category, "酒店住宿")
+        self.assertEqual(rows[0].amount, 199.0)
+        self.assertEqual(rows[0].status, "confirmed")
 
 
 if __name__ == "__main__":

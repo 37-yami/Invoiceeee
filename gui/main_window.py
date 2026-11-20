@@ -417,7 +417,10 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
             if inv.category == CATEGORY_UNKNOWN:
                 messagebox.showwarning("确认归档", "请先选择具体类别")
                 return
-            archive(self.ws, inv, self.db)  # 确认或字段变更 → (重新)归档
+            archive(self.ws, inv, self.db)
+            # 学习闭环:人工确认 = 认证过的信号,商户→类别沉淀为规则
+            if inv.merchant:
+                learned_upsert(self.db, inv.merchant, inv.category)  # 确认或字段变更 → (重新)归档
         self.db.update_invoice(inv)
         self.ws.log_action("edit", invoice_id=inv.id, category=inv.category)
         self._refresh()
