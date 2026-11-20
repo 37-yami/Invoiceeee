@@ -8,7 +8,11 @@ Fully local, no accounts, privacy first: all data stays in your own workspace fo
 
 ## Quick Start
 
-Requires Windows / macOS / Linux with Python 3.11+ (tkinter ships with Python on Windows).
+**Easiest way**: double-click **启动报销管家.bat** in the project root. The first run auto-installs dependencies (internet needed, ~1-2 minutes); afterwards every double-click opens the app directly, no console window.
+
+Requires Windows with Python 3.11+ (check *Add Python to PATH* during install).
+
+Manual equivalent:
 
 ```bash
 pip install -r requirements.txt

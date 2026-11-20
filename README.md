@@ -8,7 +8,11 @@
 
 ## 快速开始
 
-环境:Windows / macOS / Linux,Python 3.11+(Windows 自带 tkinter)。
+**最简方式**:双击项目根目录的「**启动报销管家.bat**」。首次运行会自动安装依赖(需联网,约 1-2 分钟),之后每次双击直接打开窗口,无黑窗驻留。
+
+环境要求:Windows,Python 3.11+(官网安装时勾选 *Add Python to PATH*)。
+
+手动方式(等价):
 
 ```bash
 pip install -r requirements.txt

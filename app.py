@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 
 
 def main() -> None:
@@ -19,7 +20,20 @@ def main() -> None:
 
     from gui.main_window import launch
 
-    launch(workspace=args.workspace)
+    try:
+        launch(workspace=args.workspace)
+    except Exception as e:  # pythonw 下静默崩溃会让用户困惑,弹窗兜底
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror("学生报销管家 启动失败", repr(e))
+            root.destroy()
+        except Exception:
+            print(f"启动失败: {e}", file=sys.stderr)
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":
