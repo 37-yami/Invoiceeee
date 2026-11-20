@@ -40,9 +40,9 @@ class StatsPage(tk.Frame):
                  fg=self.app.theme["text"],
                  font=("Microsoft YaHei", 14, "bold")).pack(side="left")
         ttk_button = ttk_button = ttk_btn = None
-        from tkinter import ttk
+        from gui.theme import btn
 
-        ttk.Button(head, text="刷新", command=self.show).pack(side="right")
+        btn(head, "刷新", self.show, padx=10, pady=4).pack(side="right")
         self.text = tk.Text(self, width=64, height=22,
                             font=("Consolas", 11), relief="flat",
                             background="#ffffff")

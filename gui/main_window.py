@@ -109,21 +109,27 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
 
     # ---------- 布局 ----------
     def _build_header(self):
-        header = tk.Frame(self, bg=T["dark"], height=56)
+        header = tk.Frame(self, bg=T["dark"], height=58)
         header.pack(fill="x")
         header.pack_propagate(False)
+        logo = tk.Label(header, text="报", bg=T["accent"], fg="#ffffff",
+                        font=("Microsoft YaHei", 11, "bold"), width=2,
+                        pady=3)
+        logo.pack(side="left", padx=(16, 8), pady=10)
         tk.Label(header, text="学生报销管家", bg=T["dark"],
                  fg=T["text_on_dark"],
                  font=("Microsoft YaHei", 13, "bold")).pack(
-            side="left", padx=(16, 4), pady=10)
+            side="left", pady=10)
         tk.Label(header, text="本地 · 数据未离开本机", bg=T["dark"],
-                 fg="#8a90a3", font=("Microsoft YaHei", 8)).pack(
-            side="left", padx=(2, 16))
+                 fg="#7c8296", font=("Microsoft YaHei", 9)).pack(
+            side="left", padx=(2, 18))
         self.ws_combo = ttk.Combobox(header, state="readonly", width=30,
                                      font=("Microsoft YaHei", 9))
         self.ws_combo.pack(side="left", padx=8, pady=12)
         self.ws_combo.bind("<<ComboboxSelected>>", self._on_ws_selected)
         self._fill_ws_combo()
+        tk.Label(header, text="v1.2", bg=T["dark"], fg="#4c5163",
+                 font=("Microsoft YaHei", 9)).pack(side="right", padx=16)
 
     def _fill_ws_combo(self):
         short = self.ws.root.name or str(self.ws.root)
@@ -162,21 +168,47 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
         body.pack(fill="both", expand=True)
 
         # 左侧导航
-        nav = tk.Frame(body, bg=T["dark"], width=170)
+        nav = tk.Frame(body, bg=T["dark"], width=176)
         nav.pack(side="left", fill="y")
         nav.pack_propagate(False)
-        tk.Frame(nav, bg=T["dark"], height=12).pack()
+        tk.Frame(nav, bg=T["dark"], height=16).pack()
+        tk.Label(nav, text="菜  单", bg=T["dark"], fg="#565d73",
+                 font=("Microsoft YaHei", 8), anchor="w").pack(
+            fill="x", padx=22, pady=(4, 2))
+        NAV_ICONS = {"overview": "◉", "invoices": "▤", "stats": "▥",
+                     "settings": "⚙"}
         self.nav_buttons: dict[str, tk.Button] = {}
         for key in PAGES:
-            btn = tk.Button(nav, text=NAV_LABELS[key], anchor="w",
-                            bg=T["dark"], fg=T["text_on_dark"],
+            btn = tk.Button(nav, text=f"{NAV_ICONS[key]}  {NAV_LABELS[key]}",
+                            anchor="w", bg=T["dark"],
+                            fg=T["text_on_dark"],
                             activebackground=T["dark_active"],
-                            activeforeground=T["text_on_dark"],
-                            relief="flat", bd=0, pady=10, padx=22,
-                            font=("Microsoft YaHei", 11), cursor="hand2",
+                            activeforeground="#ffffff", relief="flat", bd=0,
+                            pady=11, padx=20, font=("Microsoft YaHei", 11),
+                            cursor="hand2",
                             command=lambda k=key: self.show_page(k))
+
+            def on_enter(_e, k=key):
+                if getattr(self, "_active_page", None) != k:
+                    self.nav_buttons[k].config(bg=T["dark_hover"])
+
+            def on_leave(_e, k=key):
+                if getattr(self, "_active_page", None) != k:
+                    self.nav_buttons[k].config(bg=T["dark"])
+
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
             btn.pack(fill="x")
             self.nav_buttons[key] = btn
+        # 底部版权
+        bottom = tk.Frame(nav, bg=T["dark"])
+        bottom.pack(side="bottom", fill="x", pady=10)
+        tk.Label(bottom, text="纯本地 · 零云服务", bg=T["dark"],
+                 fg="#4c5163", font=("Microsoft YaHei", 8)).pack(
+            anchor="w", padx=22)
+        tk.Label(bottom, text="数据未离开本机", bg=T["dark"],
+                 fg="#4c5163", font=("Microsoft YaHei", 8)).pack(
+            anchor="w", padx=22)
 
         # 内容区容器
         container = tk.Frame(body, bg=T["bg"])
@@ -210,8 +242,12 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
         self.status_var.set(text)
 
     def show_page(self, key: str):
+        self._active_page = key
         for name, btn in self.nav_buttons.items():
-            btn.config(bg=T["dark_active"] if name == key else T["dark"])
+            if name == key:
+                btn.config(bg=T["dark_active"], fg="#ffffff")
+            else:
+                btn.config(bg=T["dark"], fg=T["text_on_dark"])
         page = self.pages[key]
         page.lift()
         if hasattr(page, "show"):

@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from core.archiver import archive, to_trash
 from core.learned import learned_upsert
+from gui.theme import btn
 from core.models import (
     CATEGORIES,
     CATEGORY_UNKNOWN,
@@ -66,14 +67,14 @@ class InvoicesPage(tk.Frame):
         lbl("日期"), self.f_from.pack(side="left")
         lbl("至"), self.f_to.pack(side="left", padx=(2, 8))
         lbl("搜索"), self.f_q.pack(side="left")
-        ttk.Button(inner, text="筛选", command=self.refresh).pack(
+        btn(inner, "筛选", self.refresh, padx=12, pady=4).pack(
             side="left", padx=8)
-        ttk.Button(inner, text="添加票据", command=self.app.add_files).pack(
-            side="right")
-        ttk.Button(inner, text="导入文件夹",
-                   command=self.app.add_folder).pack(side="right", padx=4)
-        ttk.Button(inner, text="重新识别待定",
-                   command=self.app._reimport).pack(side="right")
+        btn(inner, "＋ 添加票据", self.app.add_files, kind="primary",
+            padx=12, pady=4).pack(side="right")
+        btn(inner, "导入文件夹", self.app.add_folder, padx=12, pady=4).pack(
+            side="right", padx=4)
+        btn(inner, "重新识别待定", self.app._reimport, kind="ghost",
+            padx=12, pady=4).pack(side="right", padx=4)
         for entry in (self.f_from, self.f_to, self.f_q):
             entry.bind("<Return>", lambda _e: self.refresh())
 
@@ -103,10 +104,9 @@ class InvoicesPage(tk.Frame):
         self.sel_var = tk.StringVar(value="未选择")
         tk.Label(bar, textvariable=self.sel_var, bg=t["bg"],
                  fg=t["text"]).pack(side="left")
-        ttk.Button(bar, text="导出 CSV",
-                   command=self._export_csv).pack(side="right")
-        ttk.Button(bar, text="生成汇总单", style="Accent.TButton",
-                   command=self._open_report).pack(side="right", padx=6)
+        btn(bar, "导出 CSV", self._export_csv).pack(side="right")
+        btn(bar, "生成汇总单 →", self._open_report, kind="primary").pack(
+            side="right", padx=6)
 
     def _build_edit_panel(self):
         t = self.app.theme
@@ -139,16 +139,15 @@ class InvoicesPage(tk.Frame):
 
         ops = tk.Frame(body, bg=t["card"])
         ops.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 2))
-        ttk.Button(ops, text="打开原图",
-                   command=self._open_image).pack(side="left")
-        ttk.Button(ops, text="确认归档",
-                   command=self._save_confirm).pack(side="left", padx=6)
-        ttk.Button(ops, text="保存", command=self._save_only).pack(side="left")
-        self.b_keep = ttk.Button(ops, text="强制保留",
-                                 command=self._force_keep, state="disabled")
+        btn(ops, "打开原图", self._open_image).pack(side="left")
+        btn(ops, "✓ 确认归档", self._save_confirm, kind="primary").pack(
+            side="left", padx=6)
+        btn(ops, "保存", self._save_only).pack(side="left")
+        self.b_keep = btn(ops, "强制保留", self._force_keep, kind="ghost")
+        self.b_keep.config(state="disabled")
         self.b_keep.pack(side="left", padx=6)
-        ttk.Button(ops, text="删除(入回收站)",
-                   command=self._delete_selected).pack(side="right")
+        btn(ops, "删除(入回收站)", self._delete_selected,
+            kind="danger").pack(side="right")
 
     def _field(self, parent, label: str, row: int, col: int,
                combo: bool = False):

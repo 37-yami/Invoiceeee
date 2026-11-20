@@ -10,6 +10,7 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 import tkinter as tk
 
+from gui.theme import btn
 from core import report_csv, report_docx
 from core.db import Database
 from core.models import Invoice
@@ -69,11 +70,9 @@ class ReportDialog(tk.Toplevel):
             row=2, column=0, columnspan=3, sticky="w", padx=6, pady=(8, 2))
         ops = ttk.Frame(frame)
         ops.grid(row=3, column=0, columnspan=3, pady=(6, 0))
-        ttk.Button(ops, text="预览合计", command=self._preview).pack(
-            side="left")
-        ttk.Button(ops,
-                   text="生成 docx" if self.kind == "docx" else "导出 CSV",
-                   command=self._generate).pack(side="left", padx=8)
+        btn(ops, "预览合计", self._preview).pack(side="left")
+        btn(ops, "生成 docx" if self.kind == "docx" else "导出 CSV",
+            self._generate, kind="primary").pack(side="left", padx=8)
 
     def _meta(self) -> dict:
         return {

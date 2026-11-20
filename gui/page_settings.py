@@ -5,6 +5,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from gui.theme import btn
+
 
 class SettingsPage(tk.Frame):
     def __init__(self, parent, app):
@@ -40,10 +42,10 @@ class SettingsPage(tk.Frame):
         tk.Label(wrow, textvariable=self.ws_var, bg=t["card"],
                  fg=t["text"], anchor="w").pack(side="left", fill="x",
                                                 expand=True)
-        ttk.Button(wrow, text="打开文件夹",
-                   command=self._open_ws).pack(side="right")
-        ttk.Button(wrow, text="更换工作区…",
-                   command=self._switch_ws).pack(side="right", padx=6)
+        btn(wrow, "打开文件夹", self._open_ws, padx=10, pady=4).pack(
+            side="right")
+        btn(wrow, "更换工作区…", self._switch_ws, kind="primary", padx=10,
+            pady=4).pack(side="right", padx=6)
 
         sep2 = tk.Frame(card, bg=t["border"], height=1)
         sep2.pack(fill="x", padx=14, pady=4)
@@ -56,18 +58,17 @@ class SettingsPage(tk.Frame):
         tk.Label(brow, textvariable=self.bg_var, bg=t["card"],
                  fg=t["text"], anchor="w").pack(side="left", fill="x",
                                                 expand=True)
-        ttk.Button(brow, text="清除背景",
-                   command=self._clear_bg).pack(side="right")
-        ttk.Button(brow, text="选择背景图片…",
-                   command=self._pick_bg).pack(side="right", padx=6)
+        btn(brow, "清除背景", self._clear_bg, padx=10, pady=4).pack(
+            side="right")
+        btn(brow, "选择背景图片…", self._pick_bg, padx=10, pady=4).pack(
+            side="right", padx=6)
         tk.Label(card, text="背景图会压暗淡化后铺在概览页,只在本机生效。",
                  bg=t["card"], fg=t["text_muted"],
                  font=("Microsoft YaHei", 8)).pack(anchor="w", padx=14,
                                                    pady=(0, 8))
 
-        ttk.Button(card, text="保存设置", style="Accent.TButton",
-                   command=self._save).pack(anchor="w", padx=14,
-                                            pady=(2, 12))
+        btn(card, "保存设置", self._save, kind="primary", padx=18,
+            pady=7).pack(anchor="w", padx=14, pady=(2, 12))
         self.msg = tk.Label(card, text="", bg=t["card"], fg=t["ok"],
                             font=("Microsoft YaHei", 9))
         self.msg.pack(anchor="w", padx=14, pady=(0, 10))
@@ -80,6 +81,7 @@ class SettingsPage(tk.Frame):
                  font=("Microsoft YaHei", 9), anchor="w",
                  justify="left").pack(side="left", anchor="n", padx=(0, 8))
         entry = ttk.Entry(box, width=42)
+        entry.setting_key = key
         entry.insert(0, self.app.db.get_setting(key) or "")
         entry.pack(side="left", fill="x", expand=True)
         return entry
@@ -88,6 +90,10 @@ class SettingsPage(tk.Frame):
         self.ws_var.set(str(self.app.ws.root))
         bg = self.app.db.get_setting("background_image") or ""
         self.bg_var.set(f"当前背景:{bg}" if bg else "当前背景:默认(无图片)")
+        # 每次进入页面重读设置(其他入口可能更新过)
+        for entry in (self.e_name, self.e_sid, self.e_project, self.e_ocr):
+            entry.delete(0, "end")
+            entry.insert(0, self.app.db.get_setting(entry.setting_key) or "")
 
     def _save(self):
         for key, entry in (

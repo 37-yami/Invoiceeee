@@ -101,7 +101,8 @@ def main() -> None:
     app.show_page("overview")
     app.pages["overview"].show()
     app.update()
-    assert len(app.pages["overview"].stats_bar.winfo_children()) > 0
+    ov = app.pages["overview"]
+    assert len(ov.chips_row.winfo_children()) == 3, "概览应有 3 个统计芯片"
     print("概览页:OK")
 
     # 7. 勾选生成 docx / csv
