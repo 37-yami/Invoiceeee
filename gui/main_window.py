@@ -18,6 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from core.archiver import archive, to_trash
 from core.db import Database
+from core.learned import learned_upsert
 from core.models import CATEGORIES, CATEGORY_UNKNOWN, STATUS_CONFIRMED
 from core.workspace import Workspace
 from gui.importer import Importer

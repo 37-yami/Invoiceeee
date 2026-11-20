@@ -71,7 +71,11 @@ def main() -> None:
     confirmed = db.get_invoice(rail.id)
     assert confirmed.status == "confirmed", "应已确认"
     assert Path(confirmed.archived_path).exists(), "归档文件应存在"
-    print("编辑与确认归档:OK")
+    row = db.conn.execute(
+        "SELECT keyword, category FROM learned_rules LIMIT 1"
+    ).fetchone()
+    assert row is not None, "确认应沉淀商户学习规则"
+    print("编辑与确认归档(含学习沉淀):OK")
 
     # 3. 重复导入同一文件 → 标记
     dup_rows = app.importer.import_files([files[0]])
