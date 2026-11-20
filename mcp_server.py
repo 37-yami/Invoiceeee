@@ -100,7 +100,7 @@ def _resolve_workspace() -> Path:
                 return Path(ws)
         except (OSError, ValueError):
             pass
-    ws = Path.cwd() / "报销管家工作区"
+    ws = REPO / "工作区"  # 与 GUI 默认一致:项目目录下
     ws.mkdir(parents=True, exist_ok=True)
     return ws
 

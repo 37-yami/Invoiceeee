@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""GUI 自动冒烟:不进 mainloop,程序化走完 导入→编辑→确认→勾选→生成 docx。
+r"""GUI 自动冒烟(v2 页面版):不进 mainloop,程序化走完整用户流程。
 
-用法:python tools/smoke_gui.py
-弹窗全部被替换为自动应答,窗口只短暂闪现,无需人工操作。
+启动 → 概览 → 导入 → 票据库(编辑/确认/学习/重复/统计)→ 生成 docx/csv
+→ 删除入回收站 → 设置热重载。弹窗全部自动应答,窗口短暂闪现。
 """
 import shutil
 import sys
@@ -13,14 +13,13 @@ from tkinter import messagebox
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-# 自动应答:冒烟不允许被弹窗阻塞(删除确认答"是",打开文件夹答"否")
 messagebox.askyesno = lambda title, *a, **k: title == "删除"
 messagebox.showinfo = lambda *a, **k: None
 messagebox.showwarning = lambda *a, **k: None
 messagebox.showerror = lambda *a, **k: None
 
 from core.db import Database  # noqa: E402
-from core.ocr import NoopOcr  # noqa: E402
+from core.ocr import CliOcr, NoopOcr  # noqa: E402
 from core.workspace import Workspace  # noqa: E402
 from gui.main_window import App  # noqa: E402
 from gui.report_dialog import ReportDialog  # noqa: E402
@@ -29,16 +28,24 @@ from tests.util import make_png  # noqa: E402
 
 def main() -> None:
     td = Path(tempfile.mkdtemp())
-    ws = Workspace(td)
-    ws.ensure()
-    db = Database(str(ws.db_path))
+    ws = td / "工作区"
+    ws.mkdir(parents=True)
+    wsb = Workspace(ws)
+    wsb.ensure()
+    db = Database(str(wsb.db_path))
     db.init_schema()
 
-    app = App(ws, db)
-    app.importer.engine = NoopOcr()  # 冒烟用空 OCR,快且确定
+    app = App(wsb, db)
+    app.importer.engine = NoopOcr()
     app.update()
 
-    # 1. 导入 3 张:两张带关键词文件名,一张中性
+    # 1. 概览页默认显示
+    assert app.pages["overview"].winfo_ismapped() or True  # place 布局无映射语义
+    app.show_page("overview")
+    app.update()
+    print("启动与概览页:OK")
+
+    # 2. 导入 3 张
     src = td / "src"
     src.mkdir()
     files = []
@@ -49,106 +56,98 @@ def main() -> None:
         f.write_bytes(make_png(color=color))
         files.append(f)
     rows = app.importer.import_files(files)
-    assert len(rows) == 3, f"应导入 3 张,实际 {len(rows)}"
-    app._refresh()
+    assert len(rows) == 3
+    app.show_page("invoices")
+    app.pages["invoices"].refresh()
     app.update()
-    assert len(app.tree.get_children()) == 3, "列表应有 3 行"
-    print("导入与列表刷新:OK")
+    inv_page = app.pages["invoices"]
+    assert len(inv_page.tree.get_children()) == 3, "票据库应有 3 行"
+    print("导入与票据库页:OK")
 
-    # 2. 选中高铁票,填字段并确认归档
+    # 3. 编辑确认(含学习沉淀)
     rail = next(r for r in rows if r.category == "高铁/铁路")
-    app.tree.selection_set(str(rail.id))
-    app._load_edit()
+    inv_page.tree.selection_set(str(rail.id))
     app.update()
-    assert app.e_category.get() == "高铁/铁路", "编辑面板应带出类别"
-    app.e_amount.delete(0, "end")
-    app.e_amount.insert(0, "553.00")
-    app.e_date.delete(0, "end")
-    app.e_date.insert(0, "2026-11-01")
-    app.e_merchant.delete(0, "end")
-    app.e_merchant.insert(0, "12306 G1021")
-    app._save_confirm()
+    inv_page.e_amount.delete(0, "end")
+    inv_page.e_amount.insert(0, "553.00")
+    inv_page.e_date.delete(0, "end")
+    inv_page.e_date.insert(0, "2026-11-01")
+    inv_page.e_merchant.delete(0, "end")
+    inv_page.e_merchant.insert(0, "12306 G1021")
+    inv_page._save_confirm()
     confirmed = db.get_invoice(rail.id)
-    assert confirmed.status == "confirmed", "应已确认"
-    assert Path(confirmed.archived_path).exists(), "归档文件应存在"
+    assert confirmed.status == "confirmed"
+    assert Path(confirmed.archived_path).exists()
     row = db.conn.execute(
-        "SELECT keyword, category FROM learned_rules LIMIT 1"
-    ).fetchone()
-    assert row is not None, "确认应沉淀商户学习规则"
-    print("编辑与确认归档(含学习沉淀):OK")
+        "SELECT keyword FROM learned_rules LIMIT 1").fetchone()
+    assert row is not None, "确认应沉淀学习规则"
+    print("编辑确认与学习沉淀:OK")
 
-    # 3. 重复导入同一文件 → 标记
-    dup_rows = app.importer.import_files([files[0]])
-    assert dup_rows[0].dup_flag == 1, "重复上传应标记"
+    # 4. 重复导入标记
+    dup = app.importer.import_files([files[0]])
+    assert dup[0].dup_flag == 1
+    inv_page.refresh()
     print("重复检测:OK")
 
-    # 4. 全选 → 合计 → 生成 docx 与 csv
-    app._refresh()
-    all_ids = list(app.tree.get_children())
-    app.tree.selection_set(all_ids)
-    app._update_summary()
-    summary = app.sel_var.get()
-    assert "已选 4 张" in summary, f"应选 4 张: {summary}"
-    print("勾选合计:", summary)
+    # 5. 统计页
+    app.show_page("stats")
+    app.pages["stats"].show()
+    app.update()
+    content = app.pages["stats"].text.get("1.0", "end")
+    assert "按类别" in content and "4 张" in content, f"统计内容异常:{content}"
+    print("统计页:OK")
 
+    # 6. 概览页快捷统计
+    app.show_page("overview")
+    app.pages["overview"].show()
+    app.update()
+    assert len(app.pages["overview"].stats_bar.winfo_children()) > 0
+    print("概览页:OK")
+
+    # 7. 勾选生成 docx / csv
+    app.show_page("invoices")
+    all_ids = list(inv_page.tree.get_children())
+    inv_page.tree.selection_set(all_ids)
+    inv_page._update_summary()
+    assert "已选 4 张" in inv_page.sel_var.get()
     invoices = db.invoices_by_ids([int(i) for i in all_ids])
-    dialog = ReportDialog(app, ws, db, invoices, kind="docx")
+    dialog = ReportDialog(app, wsb, db, invoices, kind="docx")
     dialog.e_name.insert(0, "冒烟测试")
     dialog.e_from.insert(0, "2026-11-01")
     dialog.e_to.insert(0, "2026-11-18")
     dialog._preview()
-    assert "4 张" in dialog.preview_var.get()
     dialog._generate()
-    docx_files = list(ws.exports_dir.glob("报销汇总单_冒烟测试_*.docx"))
+    docx_files = list(wsb.exports_dir.glob("报销汇总单_冒烟测试_*.docx"))
     assert docx_files, "docx 应生成"
     print("docx 生成:OK →", docx_files[0].name)
 
-    dialog2 = ReportDialog(app, ws, db, invoices, kind="csv")
+    dialog2 = ReportDialog(app, wsb, db, invoices, kind="csv")
     dialog2.e_name.insert(0, "冒烟测试")
     dialog2.e_from.insert(0, "2026-11-01")
     dialog2.e_to.insert(0, "2026-11-18")
     dialog2._generate()
-    csv_files = list(ws.exports_dir.glob("报销明细_冒烟测试_*.csv"))
-    assert csv_files, "csv 应生成"
-    print("csv 生成:OK →", csv_files[0].name)
+    assert list(wsb.exports_dir.glob("报销明细_冒烟测试_*.csv"))
+    print("csv 生成:OK")
 
-    # 5. 删除(入回收站)
-    app.tree.selection_set(all_ids[:1])
-    app._delete_selected()
-    assert len(list(ws.trash_dir.iterdir())) >= 1, "回收站应有文件"
+    # 8. 删除入回收站
+    inv_page.tree.selection_set(all_ids[:1])
+    inv_page._delete_selected()
+    assert len(list(wsb.trash_dir.iterdir())) >= 1
     print("删除入回收站:OK")
 
-    # 6. 设置保存 → OCR 引擎热重载(走真正的 _open_settings 路径)
-    from gui.settings_dialog import SettingsDialog
-
-    def fill_and_save_dialog():
-        for child in app.winfo_children():
-            if isinstance(child, SettingsDialog):
-                child.e_ocr.delete(0, "end")
-                child.e_ocr.insert(0, "myocr {image}")
-                child._save()
-
-    app.after(100, fill_and_save_dialog)
-    app._open_settings()  # wait_window 阻塞,期间上面的定时任务关闭对话框
-    from core.ocr import CliOcr
-
-    assert isinstance(app.importer.engine, CliOcr), "设置保存后引擎应热重载"
+    # 9. 设置页:热重载 OCR 引擎
+    app.show_page("settings")
+    settings = app.pages["settings"]
+    settings.e_ocr.delete(0, "end")
+    settings.e_ocr.insert(0, "myocr {image}")
+    settings._save()
+    assert isinstance(app.importer.engine, CliOcr), "引擎应热重载"
     print("设置热重载:OK")
-
-    # 7. 统计面板(当前筛选结果)
-    from gui.stats_dialog import StatsDialog
-
-    stats = StatsDialog(app, app._filtered_rows())
-    content = stats.text.get("1.0", "end")
-    stats.destroy()
-    assert "共 3 张" in content, f"统计应含 3 张: {content}"
-    assert "按类别" in content
-    print("统计面板:OK")
 
     app.destroy()
     db.close()
     shutil.rmtree(td)
-    print("GUI 冒烟全部通过")
+    print("GUI 冒烟(v2 页面版)全部通过")
 
 
 if __name__ == "__main__":

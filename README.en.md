@@ -8,7 +8,7 @@ Fully local, no accounts, privacy first: all data stays in your own workspace fo
 
 ## Quick Start
 
-**Easiest way**: double-click **启动报销管家.bat** in the project root. The first run auto-installs dependencies (internet needed, ~1-2 minutes); afterwards every double-click opens the app directly, no console window.
+**Easiest way**: double-click **启动报销管家.bat** in the project root. The first run auto-installs dependencies (internet needed, ~1-2 minutes); afterwards every double-click opens the main window directly — **no workspace-picker dialog**. Records are stored by default in the 「工作区」 folder inside the project directory (auto-created).
 
 Requires Windows with Python 3.11+ (check *Add Python to PATH* during install).
 
@@ -18,6 +18,15 @@ Manual equivalent:
 pip install -r requirements.txt
 python app.py
 ```
+
+## Interface
+
+One complete workspace with four pages in the left navigation:
+
+- **概览 (Overview)**: welcome card, big import buttons (multi-select / folder / drag into window), current-workspace glance and recent imports; you can set your own background image in Settings
+- **票据库 (Invoices)**: filters, multi-select table, edit panel for correcting every field, confirm/archive, delete, force-keep
+- **统计 (Stats)**: per-category totals of the current filter
+- **设置 (Settings)**: default claimant, OCR command, workspace switching, background image
 
 On first launch you pick (or create) a workspace folder; it is remembered afterwards.
 
