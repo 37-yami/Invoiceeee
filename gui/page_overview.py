@@ -19,8 +19,9 @@ class OverviewPage(tk.Frame):
         t = app.theme
         self.configure(bg=t["bg"])
         self._bg_photo = None
+        self._bg_job = None
 
-        # 底层背景标签(自定义背景图时填充)
+        # 底层背景标签(自定义壁纸或内置默认壁纸)
         self.bg_label = tk.Label(self, bg=t["bg"])
         self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
@@ -34,10 +35,15 @@ class OverviewPage(tk.Frame):
         hero = tk.Frame(content, bg=t["card"], highlightthickness=1,
                         highlightbackground=t["border"])
         hero.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 14))
+        import datetime
+
+        hour = datetime.datetime.now().hour
+        greet = ("早上好" if hour < 12
+                 else "下午好" if hour < 18 else "晚上好")
         tk.Label(hero, text="学生报销管家 · STUDENT REIMBURSE MANAGER",
                  bg=t["card"], fg=t["accent"], font=("Microsoft YaHei", 9)
                  ).pack(anchor="w", padx=32, pady=(26, 0))
-        tk.Label(hero, text="票据归档,一键汇总。",
+        tk.Label(hero, text=f"{greet},票据归档,一键汇总。",
                  bg=t["card"], fg=t["text"],
                  font=("Microsoft YaHei", 24, "bold")).pack(
             anchor="w", padx=32, pady=(4, 0))
@@ -75,10 +81,12 @@ class OverviewPage(tk.Frame):
 
         tip = tk.Label(content,
                        text="小提示:左侧「票据库」筛选与勾选票据,"
-                            "「设置」里可换工作区与背景图。",
+                            "「设置」里可切换 Workspace 与背景图。",
                        bg=t["bg"], fg=t["text_muted"],
                        font=("Microsoft YaHei", 9))
         tip.grid(row=3, column=0, sticky="w", padx=30)
+        # 窗口尺寸变化时防抖重绘壁纸
+        self.bind("<Configure>", self._on_resize)
 
     def _build_glance_header(self):
         t = self.app.theme
@@ -111,15 +119,15 @@ class OverviewPage(tk.Frame):
             ("合计金额", f"{total(rows):.2f} 元", t["text"]),
         ]
         for label, value, color in chips:
-            chip = tk.Frame(self.chips_row, bg="#f7f8fb",
+            chip = tk.Frame(self.chips_row, bg=t["card_soft"],
                             highlightthickness=1,
                             highlightbackground=t["border"])
             chip.pack(side="left", padx=(0, 12))
-            tk.Label(chip, text=value, bg="#f7f8fb", fg=color,
+            tk.Label(chip, text=value, bg=t["card_soft"], fg=color,
                      font=("Microsoft YaHei", 17, "bold")).pack(
                 anchor="w", padx=18, pady=(10, 0))
             tk.Label(chip, text=label,
-                     bg="#f7f8fb", fg=t["text_muted"],
+                     bg=t["card_soft"], fg=t["text_muted"],
                      font=("Microsoft YaHei", 9)).pack(anchor="w", padx=18,
                                                        pady=(0, 10))
 
@@ -163,21 +171,37 @@ class OverviewPage(tk.Frame):
                      font=("Microsoft YaHei", 10, "bold")).pack(side="right")
 
     # ---------- 背景 ----------
+    def _on_resize(self, _event):
+        if self._bg_job:
+            self.after_cancel(self._bg_job)
+        self._bg_job = self.after(300, self._draw_background)
+
+    def _bg_source(self) -> Path | None:
+        """用户自定义背景优先,否则用内置默认壁纸。"""
+        custom = self.app.db.get_setting("background_image")
+        if custom and Path(custom).exists():
+            return Path(custom)
+        built_in = Path(__file__).resolve().parent.parent / "assets" \
+            / "default_bg.png"
+        if built_in.exists():
+            return built_in
+        return None
+
     def _draw_background(self):
         t = self.app.theme
-        bg_path = self.app.db.get_setting("background_image")
-        if bg_path and Path(bg_path).exists() and self.app.has_pil:
+        source = self._bg_source()
+        if source and self.app.has_pil:
             try:
                 from PIL import Image, ImageTk
 
-                img = Image.open(bg_path).convert("RGB")
+                img = Image.open(source).convert("RGB")
                 w = max(self.winfo_width(), 900)
                 h = max(self.winfo_height(), 600)
                 ratio = max(w / img.width, h / img.height)
                 img = img.resize((int(img.width * ratio) + 1,
                                   int(img.height * ratio) + 1))
-                overlay = Image.new("RGB", img.size, "#f7f8fc")
-                img = Image.blend(img, overlay, 0.85)  # 压暗淡化保证可读
+                overlay = Image.new("RGB", img.size, "#171923")
+                img = Image.blend(img, overlay, 0.35)  # 压暗保证可读
                 self._bg_photo = ImageTk.PhotoImage(img)
                 self.bg_label.config(image=self._bg_photo)
                 return

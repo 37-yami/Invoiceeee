@@ -2,4 +2,5 @@ __pycache__/
 *.pyc
 .superpowers/
 工作区/
+workspace/
 报销管家工作区/

@@ -89,7 +89,7 @@ class InvoicesPage(tk.Frame):
         for col, w in zip(columns, (70, 90, 110, 90, 260, 90, 130)):
             self.tree.heading(col, text=col)
             self.tree.column(col, width=w, anchor="w")
-        self.tree.tag_configure("pending", background="#fff8e1")
+        self.tree.tag_configure("pending", background=self.app.theme["pending_bg"])
         self.tree.tag_configure("dup", foreground=t["warn"])
         vsb = ttk.Scrollbar(table, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -121,7 +121,7 @@ class InvoicesPage(tk.Frame):
 
         body = tk.Frame(panel, bg=t["card"])
         body.pack(fill="x", padx=10, pady=6)
-        self.preview = tk.Label(body, width=42, bg="#f0f1f4", fg=t["text_muted"],
+        self.preview = tk.Label(body, width=42, bg=self.app.theme["card_soft"], fg=t["text_muted"],
                                 text="(无预览)")
         self.preview.grid(row=0, column=0, rowspan=3, padx=(0, 10),
                           sticky="ns")

@@ -45,7 +45,10 @@ class StatsPage(tk.Frame):
         btn(head, "刷新", self.show, padx=10, pady=4).pack(side="right")
         self.text = tk.Text(self, width=64, height=22,
                             font=("Consolas", 11), relief="flat",
-                            background="#ffffff")
+                            background=self.app.theme["card"],
+                            fg=self.app.theme["text"],
+                            insertbackground=self.app.theme["text"],
+                            padx=16, pady=12)
         self.text.pack(padx=12, pady=8, anchor="nw")
 
     def show(self):

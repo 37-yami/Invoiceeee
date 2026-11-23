@@ -34,7 +34,7 @@ class SettingsPage(tk.Frame):
         sep = tk.Frame(card, bg=t["border"], height=1)
         sep.pack(fill="x", padx=14, pady=4)
 
-        tk.Label(card, text="工作区", bg=t["card"], fg=t["text_muted"],
+        tk.Label(card, text="Workspace(数据目录)", bg=t["card"], fg=t["text_muted"],
                  font=("Microsoft YaHei", 9)).pack(anchor="w", padx=14)
         wrow = tk.Frame(card, bg=t["card"])
         wrow.pack(fill="x", padx=14, pady=2)
@@ -44,7 +44,7 @@ class SettingsPage(tk.Frame):
                                                 expand=True)
         btn(wrow, "打开文件夹", self._open_ws, padx=10, pady=4).pack(
             side="right")
-        btn(wrow, "更换工作区…", self._switch_ws, kind="primary", padx=10,
+        btn(wrow, "切换 Workspace…", self._switch_ws, kind="primary", padx=10,
             pady=4).pack(side="right", padx=6)
 
         sep2 = tk.Frame(card, bg=t["border"], height=1)
@@ -89,7 +89,8 @@ class SettingsPage(tk.Frame):
     def show(self):
         self.ws_var.set(str(self.app.ws.root))
         bg = self.app.db.get_setting("background_image") or ""
-        self.bg_var.set(f"当前背景:{bg}" if bg else "当前背景:默认(无图片)")
+        self.bg_var.set(f"当前背景:自定义 {bg}" if bg
+                        else "当前背景:内置默认壁纸")
         # 每次进入页面重读设置(其他入口可能更新过)
         for entry in (self.e_name, self.e_sid, self.e_project, self.e_ocr):
             entry.delete(0, "end")
@@ -112,7 +113,7 @@ class SettingsPage(tk.Frame):
         open_folder(self.app.ws.root)
 
     def _switch_ws(self):
-        folder = filedialog.askdirectory(title="选择(或新建)工作区文件夹")
+        folder = filedialog.askdirectory(title="选择(或新建)Workspace 文件夹")
         if not folder:
             return
         self.app.switch_workspace(folder)
@@ -131,6 +132,6 @@ class SettingsPage(tk.Frame):
 
     def _clear_bg(self):
         self.app.db.set_setting("background_image", "")
-        self.bg_var.set("当前背景:默认(无图片)")
+        self.bg_var.set("当前背景:内置默认壁纸")
         self.app.refresh_background()
-        self.msg.config(text="背景已恢复默认")
+        self.msg.config(text="背景已恢复内置默认壁纸")

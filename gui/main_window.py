@@ -21,7 +21,8 @@ from gui.theme import apply as apply_theme
 
 APP_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = Path.home() / ".student_invoice_gui.json"
-DEFAULT_WS_NAME = "工作区"
+DEFAULT_WS_NAME = "workspace"
+LEGACY_WS_NAME = "工作区"  # 旧版默认目录,存在则继续沿用
 
 try:
     from PIL import Image, ImageTk
@@ -62,6 +63,9 @@ def _resolve_workspace(explicit: str | None) -> Path:
     remembered = _load_config().get("workspace")
     if remembered and Path(remembered).exists():
         return Path(remembered)
+    legacy = APP_DIR / LEGACY_WS_NAME
+    if legacy.exists():
+        return legacy
     ws = APP_DIR / DEFAULT_WS_NAME
     ws.mkdir(parents=True, exist_ok=True)
     return ws
@@ -133,19 +137,20 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
 
     def _fill_ws_combo(self):
         short = self.ws.root.name or str(self.ws.root)
-        self._ws_values = [short, "更换工作区…", "打开工作区文件夹"]
+        self._ws_values = [short, "切换 Workspace…", "打开 Workspace 文件夹"]
         self.ws_combo["values"] = self._ws_values
         self.ws_combo.current(0)
 
     def _on_ws_selected(self, _event=None):
         choice = self.ws_combo.get()
-        if choice == "更换工作区…":
-            folder = filedialog.askdirectory(title="选择(或新建)工作区文件夹")
+        if choice == "切换 Workspace…":
+            folder = filedialog.askdirectory(
+                title="选择(或新建)Workspace 文件夹")
             if folder:
                 self.switch_workspace(folder)
             else:
                 self.ws_combo.current(0)
-        elif choice == "打开工作区文件夹":
+        elif choice == "打开 Workspace 文件夹":
             from gui.report_dialog import open_folder
 
             open_folder(self.ws.root)

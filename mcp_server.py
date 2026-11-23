@@ -100,7 +100,10 @@ def _resolve_workspace() -> Path:
                 return Path(ws)
         except (OSError, ValueError):
             pass
-    ws = REPO / "工作区"  # 与 GUI 默认一致:项目目录下
+    legacy = REPO / "工作区"
+    if legacy.exists():
+        return legacy
+    ws = REPO / "workspace"  # 与 GUI 默认一致
     ws.mkdir(parents=True, exist_ok=True)
     return ws
 

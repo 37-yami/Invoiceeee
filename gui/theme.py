@@ -1,26 +1,29 @@
 # -*- coding: utf-8 -*-
-"""界面主题:配色、字体、扁平按钮体系与 ttk 样式。"""
+"""界面主题:暗色沉浸风格(类主流音乐/创作软件),扁平按钮体系。"""
 from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
 
 COLORS = {
-    "dark": "#1b2030",        # 侧边栏 / 顶栏
-    "dark_hover": "#242b40",
-    "dark_active": "#2c3550",
-    "accent": "#6c5ce7",      # 强调色(紫)
-    "accent_hover": "#5a4bd4",
-    "accent_soft": "#edeafc",
-    "bg": "#f4f5f8",          # 内容区背景
-    "card": "#ffffff",        # 卡片
-    "border": "#e6e8ef",
-    "text": "#232735",
+    "root": "#12131b",        # 窗体最深(顶栏/侧栏/状态栏)
+    "dark": "#12131b",
+    "dark_hover": "#1d1f2c",
+    "dark_active": "#272a3d",
+    "bg": "#191b26",          # 内容区底色
+    "card": "#20222e",        # 卡片
+    "card_soft": "#262938",   # 卡片内嵌块(芯片/预览)
+    "border": "#2c2f3f",
+    "accent": "#7c6ff0",      # 强调色(亮紫,暗底友好)
+    "accent_hover": "#6a5ce6",
+    "accent_soft": "#312c55",
+    "text": "#e8eaf2",        # 亮字
     "text_on_dark": "#e8eaf2",
-    "text_muted": "#7b8194",
-    "pending_bg": "#fff8e1",
-    "warn": "#b3541e",
-    "ok": "#2c6e49",
+    "text_muted": "#8b90a6",
+    "pending_bg": "#33301f",
+    "warn": "#e8955c",
+    "ok": "#5fc98e",
+    "danger": "#e8955c",
 }
 
 FONT = "Microsoft YaHei"
@@ -32,8 +35,7 @@ def font(size: int = 10, bold: bool = False) -> tuple:
 
 def btn(parent, text: str, command, kind: str = "secondary",
         **kwargs) -> tk.Button:
-    """统一扁平按钮:primary 紫底白字 / secondary 白底紫字 / ghost 透明灰字 / danger。
-    替代 ttk 默认灰按钮,保证全局观感一致。"""
+    """统一扁平按钮:primary 紫底白字 / secondary 深底亮字 / ghost 弱化 / danger。"""
     t = COLORS
     if kind == "primary":
         style = dict(bg=t["accent"], fg="#ffffff",
@@ -41,19 +43,17 @@ def btn(parent, text: str, command, kind: str = "secondary",
                      activeforeground="#ffffff")
     elif kind == "danger":
         style = dict(bg=t["card"], fg=t["warn"],
-                     activebackground="#fdf1ea",
+                     activebackground="#3a2f26",
                      activeforeground=t["warn"])
     elif kind == "ghost":
         style = dict(bg=kwargs.pop("bg", t["card"]), fg=t["text_muted"],
-                     activebackground=t["bg"],
+                     activebackground=t["card_soft"],
                      activeforeground=t["text"])
     else:  # secondary
-        style = dict(bg=t["card"], fg=t["accent"],
-                     activebackground=t["accent_soft"],
-                     activeforeground=t["accent"])
-    if kind != "ghost":
-        style.update(highlightthickness=1,
-                     highlightbackground=t["border"])
+        style = dict(bg=t["card_soft"], fg=t["text"],
+                     activebackground="#31354a",
+                     activeforeground="#ffffff")
+    style.update(highlightthickness=1, highlightbackground=t["border"])
     common = dict(relief="flat", bd=0, cursor="hand2",
                   font=(FONT, 10, "bold"), padx=14, pady=6)
     common.update(style)
@@ -61,31 +61,42 @@ def btn(parent, text: str, command, kind: str = "secondary",
     return tk.Button(parent, text=text, command=command, **common)
 
 
-def nav_btn(parent, text: str, command) -> tk.Button:
-    """侧边栏导航按钮。"""
+def card(parent, **kwargs) -> tk.Frame:
+    """统一卡片:深色圆角感(1px 边框)。"""
     t = COLORS
-    return tk.Button(parent, text=text, anchor="w", bg=t["dark"],
-                     fg=t["text_on_dark"],
-                     activebackground=t["dark_active"],
-                     activeforeground="#ffffff", relief="flat", bd=0,
-                     pady=11, padx=20, font=(FONT, 11), cursor="hand2",
-                     command=command)
+    opts = dict(bg=t["card"], highlightthickness=1,
+                highlightbackground=t["border"])
+    opts.update(kwargs)
+    return tk.Frame(parent, **opts)
 
 
 def apply(root: tk.Tk | tk.Toplevel) -> None:
-    """配置 ttk 控件(表格/输入框/下拉)外观。"""
+    """配置 ttk 控件为暗色(表格/输入框/下拉)。"""
     style = ttk.Style(root)
+    t = COLORS
     style.configure("Treeview",
-                    background=COLORS["card"],
-                    fieldbackground=COLORS["card"],
-                    foreground=COLORS["text"],
-                    rowheight=32, font=(FONT, 10))
+                    background=t["card"], fieldbackground=t["card"],
+                    foreground=t["text"], rowheight=32,
+                    font=(FONT, 10))
     style.configure("Treeview.Heading",
-                    background="#eef0f5", foreground=COLORS["text_muted"],
+                    background="#262938", foreground=t["text_muted"],
                     font=(FONT, 9, "bold"), padding=(8, 7))
     style.map("Treeview",
-              background=[("selected", COLORS["accent"])],
+              background=[("selected", t["accent"])],
               foreground=[("selected", "#ffffff")])
-    style.configure("TEntry", padding=5)
-    style.configure("TCombobox", padding=5)
+    style.configure("TEntry", padding=5,
+                    fieldbackground=t["card_soft"],
+                    background=t["card_soft"], foreground=t["text"],
+                    insertcolor=t["text"])
+    style.configure("TCombobox", padding=5,
+                    fieldbackground=t["card_soft"],
+                    background=t["card_soft"], foreground=t["text"],
+                    arrowcolor=t["text_muted"])
+    style.map("TCombobox",
+              fieldbackground=[("readonly", t["card_soft"])],
+              foreground=[("readonly", t["text"])])
     root.option_add("*TCombobox*Listbox.font", (FONT, 10))
+    root.option_add("*TCombobox*Listbox.background", t["card_soft"])
+    root.option_add("*TCombobox*Listbox.foreground", t["text"])
+    root.option_add("*TCombobox*Listbox.selectBackground", t["accent"])
+    root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")

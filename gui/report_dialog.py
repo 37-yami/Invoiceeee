@@ -41,13 +41,17 @@ class ReportDialog(tk.Toplevel):
         self._preview()
 
     def _build(self):
-        frame = ttk.Frame(self)
-        frame.pack(padx=14, pady=12)
+        from gui.theme import COLORS as t
+
+        self.configure(bg=t["card"])
+        frame = tk.Frame(self, bg=t["card"])
+        frame.pack(padx=16, pady=14)
 
         def field(label: str, value: str, row: int, col: int) -> ttk.Entry:
-            box = ttk.Frame(frame)
+            box = tk.Frame(frame, bg=t["card"])
             box.grid(row=row, column=col, padx=6, pady=4, sticky="ew")
-            ttk.Label(box, text=label).pack(anchor="w")
+            tk.Label(box, text=label, bg=t["card"], fg=t["text_muted"],
+                     font=("Microsoft YaHei", 9)).pack(anchor="w")
             entry = ttk.Entry(box, width=22)
             entry.insert(0, value)
             entry.pack(fill="x")
@@ -65,10 +69,10 @@ class ReportDialog(tk.Toplevel):
         self.e_reason = field("出差事由", "", 1, 2)
 
         self.preview_var = tk.StringVar()
-        ttk.Label(frame, textvariable=self.preview_var,
-                  foreground="#2c6e49").grid(
+        tk.Label(frame, textvariable=self.preview_var, bg=t["card"],
+                 fg=t["accent"], font=("Microsoft YaHei", 11, "bold")).grid(
             row=2, column=0, columnspan=3, sticky="w", padx=6, pady=(8, 2))
-        ops = ttk.Frame(frame)
+        ops = tk.Frame(frame, bg=t["card"])
         ops.grid(row=3, column=0, columnspan=3, pady=(6, 0))
         btn(ops, "预览合计", self._preview).pack(side="left")
         btn(ops, "生成 docx" if self.kind == "docx" else "导出 CSV",
