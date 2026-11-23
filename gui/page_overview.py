@@ -40,16 +40,12 @@ class OverviewPage(tk.Frame):
         hour = datetime.datetime.now().hour
         greet = ("早上好" if hour < 12
                  else "下午好" if hour < 18 else "晚上好")
-        tk.Label(hero, text="学生报销管家 · STUDENT REIMBURSE MANAGER",
-                 bg=t["card"], fg=t["accent"], font=("Microsoft YaHei", 9)
-                 ).pack(anchor="w", padx=32, pady=(26, 0))
         tk.Label(hero, text=f"{greet},票据归档,一键汇总。",
                  bg=t["card"], fg=t["text"],
                  font=("Microsoft YaHei", 24, "bold")).pack(
-            anchor="w", padx=32, pady=(4, 0))
+            anchor="w", padx=32, pady=(26, 0))
         tk.Label(hero,
-                 text="导入票据照片或电子发票 PDF,自动识别内容并分类;"
-                      "勾选票据一键生成正式报销汇总单。\n全部数据只存在本机。",
+                 text="导入票据照片或 PDF,自动识别分类;勾选后一键生成报销汇总单。",
                  bg=t["card"], fg=t["text_muted"], justify="left",
                  font=("Microsoft YaHei", 10), wraplength=560).pack(
             anchor="w", padx=32, pady=(8, 14))
@@ -79,12 +75,6 @@ class OverviewPage(tk.Frame):
         recent.grid(row=2, column=0, sticky="ew", padx=28, pady=(0, 12))
         self.recent = recent
 
-        tip = tk.Label(content,
-                       text="小提示:左侧「票据库」筛选与勾选票据,"
-                            "「设置」里可切换 Workspace 与背景图。",
-                       bg=t["bg"], fg=t["text_muted"],
-                       font=("Microsoft YaHei", 9))
-        tip.grid(row=3, column=0, sticky="w", padx=30)
         # 窗口尺寸变化时防抖重绘壁纸
         self.bind("<Configure>", self._on_resize)
 

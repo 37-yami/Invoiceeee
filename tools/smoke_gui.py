@@ -113,9 +113,14 @@ def main() -> None:
     assert "已选 4 张" in inv_page.sel_var.get()
     invoices = db.invoices_by_ids([int(i) for i in all_ids])
     dialog = ReportDialog(app, wsb, db, invoices, kind="docx")
-    dialog.e_name.insert(0, "冒烟测试")
-    dialog.e_from.insert(0, "2026-11-01")
-    dialog.e_to.insert(0, "2026-11-18")
+
+    def fill(entry, value):
+        entry.delete(0, "end")
+        entry.insert(0, value)
+
+    fill(dialog.e_name, "冒烟测试")
+    fill(dialog.e_from, "2026-11-01")
+    fill(dialog.e_to, "2026-11-18")
     dialog._preview()
     dialog._generate()
     docx_files = list(wsb.exports_dir.glob("报销汇总单_冒烟测试_*.docx"))
@@ -123,9 +128,9 @@ def main() -> None:
     print("docx 生成:OK →", docx_files[0].name)
 
     dialog2 = ReportDialog(app, wsb, db, invoices, kind="csv")
-    dialog2.e_name.insert(0, "冒烟测试")
-    dialog2.e_from.insert(0, "2026-11-01")
-    dialog2.e_to.insert(0, "2026-11-18")
+    fill(dialog2.e_name, "冒烟测试")
+    fill(dialog2.e_from, "2026-11-01")
+    fill(dialog2.e_to, "2026-11-18")
     dialog2._generate()
     assert list(wsb.exports_dir.glob("报销明细_冒烟测试_*.csv"))
     print("csv 生成:OK")

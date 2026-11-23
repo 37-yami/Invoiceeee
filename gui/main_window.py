@@ -124,16 +124,11 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
                  fg=T["text_on_dark"],
                  font=("Microsoft YaHei", 13, "bold")).pack(
             side="left", pady=10)
-        tk.Label(header, text="本地 · 数据未离开本机", bg=T["dark"],
-                 fg="#7c8296", font=("Microsoft YaHei", 9)).pack(
-            side="left", padx=(2, 18))
         self.ws_combo = ttk.Combobox(header, state="readonly", width=30,
                                      font=("Microsoft YaHei", 9))
-        self.ws_combo.pack(side="left", padx=8, pady=12)
+        self.ws_combo.pack(side="left", padx=18, pady=12)
         self.ws_combo.bind("<<ComboboxSelected>>", self._on_ws_selected)
         self._fill_ws_combo()
-        tk.Label(header, text="v1.2", bg=T["dark"], fg="#4c5163",
-                 font=("Microsoft YaHei", 9)).pack(side="right", padx=16)
 
     def _fill_ws_combo(self):
         short = self.ws.root.name or str(self.ws.root)
@@ -205,15 +200,6 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
             btn.bind("<Leave>", on_leave)
             btn.pack(fill="x")
             self.nav_buttons[key] = btn
-        # 底部版权
-        bottom = tk.Frame(nav, bg=T["dark"])
-        bottom.pack(side="bottom", fill="x", pady=10)
-        tk.Label(bottom, text="纯本地 · 零云服务", bg=T["dark"],
-                 fg="#4c5163", font=("Microsoft YaHei", 8)).pack(
-            anchor="w", padx=22)
-        tk.Label(bottom, text="数据未离开本机", bg=T["dark"],
-                 fg="#4c5163", font=("Microsoft YaHei", 8)).pack(
-            anchor="w", padx=22)
 
         # 内容区容器
         container = tk.Frame(body, bg=T["bg"])
@@ -262,7 +248,7 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
         self.importer = Importer(self.ws, self.db)
 
     def refresh_background(self):
-        self.pages["overview"]._draw()
+        self.pages["overview"].show()
 
     # ---------- 导入 ----------
     def add_files(self):

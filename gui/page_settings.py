@@ -21,15 +21,8 @@ class SettingsPage(tk.Frame):
         inner = tk.Frame(card, bg=t["card"])
         inner.pack(padx=14, pady=10)
 
-        tk.Label(inner, text="默认信息", bg=t["card"], fg=t["text_muted"],
-                 font=("Microsoft YaHei", 9)).pack(anchor="w")
-        self.e_name = self._field(inner, "默认报销人", "default_name")
-        self.e_sid = self._field(inner, "默认学号/工号", "default_student_id")
-        self.e_project = self._field(inner, "默认项目/课题组",
-                                     "default_project")
         self.e_ocr = self._field(
-            inner, "OCR 命令(可选,含 {image};留空自动用 RapidOCR)",
-            "ocr_cmd")
+            inner, "OCR 命令(可选,留空自动用本地识别)", "ocr_cmd")
 
         sep = tk.Frame(card, bg=t["border"], height=1)
         sep.pack(fill="x", padx=14, pady=4)
@@ -91,21 +84,13 @@ class SettingsPage(tk.Frame):
         bg = self.app.db.get_setting("background_image") or ""
         self.bg_var.set(f"当前背景:自定义 {bg}" if bg
                         else "当前背景:内置默认壁纸")
-        # 每次进入页面重读设置(其他入口可能更新过)
-        for entry in (self.e_name, self.e_sid, self.e_project, self.e_ocr):
-            entry.delete(0, "end")
-            entry.insert(0, self.app.db.get_setting(entry.setting_key) or "")
+        self.e_ocr.delete(0, "end")
+        self.e_ocr.insert(0, self.app.db.get_setting("ocr_cmd") or "")
 
     def _save(self):
-        for key, entry in (
-            ("default_name", self.e_name),
-            ("default_student_id", self.e_sid),
-            ("default_project", self.e_project),
-            ("ocr_cmd", self.e_ocr),
-        ):
-            self.app.db.set_setting(key, entry.get().strip())
+        self.app.db.set_setting("ocr_cmd", self.e_ocr.get().strip())
         self.app.reload_engine()
-        self.msg.config(text="已保存(OCR 引擎已按新配置加载)")
+        self.msg.config(text="已保存")
 
     def _open_ws(self):
         from gui.report_dialog import open_folder

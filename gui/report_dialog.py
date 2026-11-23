@@ -58,11 +58,11 @@ class ReportDialog(tk.Toplevel):
             return entry
 
         def setting(key: str) -> str:
-            return self.db.get_setting(key) or ""
+            return self.db.get_setting(f"last_{key}") or ""
 
-        self.e_name = field("报销人", setting("default_name"), 0, 0)
-        self.e_sid = field("学号/工号", setting("default_student_id"), 0, 1)
-        self.e_project = field("项目/课题组", setting("default_project"),
+        self.e_name = field("报销人", setting("name"), 0, 0)
+        self.e_sid = field("学号/工号", setting("student_id"), 0, 1)
+        self.e_project = field("项目/课题组", setting("project"),
                                0, 2)
         self.e_from = field("出差起(YYYY-MM-DD)", "", 1, 0)
         self.e_to = field("出差止(YYYY-MM-DD)", "", 1, 1)
@@ -108,6 +108,10 @@ class ReportDialog(tk.Toplevel):
         except Exception as e:
             messagebox.showerror("生成失败", str(e), parent=self)
             return
+        # 记住这次填写的内容,下次自动带出
+        for key in ("name", "student_id", "project", "date_from",
+                    "date_to", "reason"):
+            self.db.set_setting(f"last_{key}", meta.get(key, ""))
         self.ws.log_action("report", kind=self.kind,
                            count=len(self.invoices))
         if messagebox.askyesno(
