@@ -38,11 +38,11 @@ class InvoicesPage(tk.Frame):
         t = self.app.theme
         self.configure(bg=t["bg"])
 
-        flt = tk.Frame(self, bg=t["card"], highlightthickness=1,
-                       highlightbackground=t["border"])
-        flt.pack(fill="x", padx=12, pady=(12, 6))
-        inner = tk.Frame(flt, bg=t["card"])
-        inner.pack(padx=10, pady=8)
+        from gui.theme import RoundedCard
+
+        flt = RoundedCard(self, self.app, pad=10)
+        flt.pack(fill="x", padx=18, pady=(16, 8))
+        inner = flt.inner
 
         def lbl(text):
             tk.Label(inner, text=text, bg=t["card"],
@@ -111,23 +111,24 @@ class InvoicesPage(tk.Frame):
 
     def _build_edit_panel(self):
         t = self.app.theme
-        panel = tk.Frame(self, bg=t["card"], highlightthickness=1,
-                         highlightbackground=t["border"])
-        panel.pack(fill="x", padx=12, pady=(0, 4))
-        head = tk.Frame(panel, bg=t["card"])
-        head.pack(fill="x", padx=10, pady=(8, 0))
-        tk.Label(head, text="编辑面板(选中单条票据)", bg=t["card"],
+        from gui.theme import RoundedCard
+
+        panel = RoundedCard(self, self.app, pad=14)
+        panel.pack(fill="x", padx=18, pady=(0, 6))
+        head = tk.Frame(panel.inner, bg=panel.inner["bg"])
+        head.pack(fill="x", pady=(0, 4))
+        tk.Label(head, text="编辑面板(选中单条票据)", bg=head["bg"],
                  fg=t["text_muted"], font=("Microsoft YaHei", 9)).pack(
             side="left")
 
-        body = tk.Frame(panel, bg=t["card"])
-        body.pack(fill="x", padx=10, pady=6)
-        self.preview = tk.Label(body, width=42, bg=self.app.theme["card_soft"], fg=t["text_muted"],
+        body = tk.Frame(panel.inner, bg=panel.inner["bg"])
+        body.pack(fill="x")
+        self.preview = tk.Label(body, width=42, bg=t["card_soft"], fg=t["text_muted"],
                                 text="(无预览)")
         self.preview.grid(row=0, column=0, rowspan=3, padx=(0, 10),
                           sticky="ns")
 
-        fields = tk.Frame(body, bg=t["card"])
+        fields = tk.Frame(body, bg=body["bg"])
         fields.grid(row=0, column=1, sticky="ew")
         body.columnconfigure(1, weight=1)
 

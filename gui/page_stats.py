@@ -33,24 +33,26 @@ class StatsPage(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
-        self.configure(bg=self.app.theme["bg"])
+        t = app.theme
+        self.configure(bg=t["bg"])
         self.app.attach_wallpaper(self)  # 壁纸底层,必须最先创建
-        head = tk.Frame(self, bg=self.app.theme["bg"])
-        head.pack(fill="x", padx=12, pady=(12, 4))
-        tk.Label(head, text="统计(当前筛选结果)", bg=self.app.theme["bg"],
-                 fg=self.app.theme["text"],
-                 font=("Microsoft YaHei", 14, "bold")).pack(side="left")
-        ttk_button = ttk_button = ttk_btn = None
-        from gui.theme import btn
 
+        from gui.theme import RoundedCard, btn
+
+        head = tk.Frame(self, bg=t["bg"])
+        head.pack(fill="x", padx=22, pady=(18, 6))
+        tk.Label(head, text="统计(当前筛选结果)", bg=t["bg"],
+                 fg=t["text"],
+                 font=("Microsoft YaHei", 14, "bold")).pack(side="left")
         btn(head, "刷新", self.show, padx=10, pady=4).pack(side="right")
-        self.text = tk.Text(self, width=64, height=22,
-                            font=("Consolas", 11), relief="flat",
-                            background=self.app.theme["card"],
-                            fg=self.app.theme["text"],
-                            insertbackground=self.app.theme["text"],
-                            padx=16, pady=12)
-        self.text.pack(padx=12, pady=8, anchor="nw")
+
+        card = RoundedCard(self, app, pad=6)
+        card.pack(fill="both", expand=True, padx=22, pady=(0, 16))
+        self.text = tk.Text(card.inner, font=("Consolas", 11),
+                            relief="flat", bg=card.inner["bg"],
+                            fg=t["text"], insertbackground=t["text"],
+                            padx=16, pady=14, highlightthickness=0)
+        self.text.pack(fill="both", expand=True)
 
     def show(self):
         self.text.config(state="normal")
