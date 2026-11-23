@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import tkinter as tk
-from pathlib import Path
 
 from core.summary import total
 
@@ -18,21 +17,15 @@ class OverviewPage(tk.Frame):
         self.app = app
         t = app.theme
         self.configure(bg=t["bg"])
-        self._bg_photo = None
-        self._bg_job = None
 
-        # 底层背景标签(自定义壁纸或内置默认壁纸)
-        self.bg_label = tk.Label(self, bg=t["bg"])
-        self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        # 壁纸底层(由主窗口统一管理,必须最先创建)
+        app.attach_wallpaper(self)
 
-        # 内容层
-        content = tk.Frame(self, bg=t["bg"])
-        content.place(x=0, y=0, relwidth=1, relheight=1)
-        self.content = content
-        content.columnconfigure(0, weight=1)
+        # 卡片直接铺在壁纸上(不套实色容器,否则会盖住壁纸)
+        self.columnconfigure(0, weight=1)
 
         # ---- 欢迎卡片 ----
-        hero = tk.Frame(content, bg=t["card"], highlightthickness=1,
+        hero = tk.Frame(self, bg=t["card"], highlightthickness=1,
                         highlightbackground=t["border"])
         hero.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 14))
         import datetime
@@ -63,20 +56,17 @@ class OverviewPage(tk.Frame):
                  font=("Microsoft YaHei", 9)).pack(side="left", padx=8)
 
         # ---- 数据一览 ----
-        glance = tk.Frame(content, bg=t["card"], highlightthickness=1,
+        glance = tk.Frame(self, bg=t["card"], highlightthickness=1,
                           highlightbackground=t["border"])
         glance.grid(row=1, column=0, sticky="ew", padx=28, pady=(0, 10))
         self.glance = glance
         self._build_glance_header()
 
         # ---- 最近导入 ----
-        recent = tk.Frame(content, bg=t["card"], highlightthickness=1,
+        recent = tk.Frame(self, bg=t["card"], highlightthickness=1,
                           highlightbackground=t["border"])
         recent.grid(row=2, column=0, sticky="ew", padx=28, pady=(0, 12))
         self.recent = recent
-
-        # 窗口尺寸变化时防抖重绘壁纸
-        self.bind("<Configure>", self._on_resize)
 
     def _build_glance_header(self):
         t = self.app.theme
@@ -94,7 +84,6 @@ class OverviewPage(tk.Frame):
     def show(self):
         self._refresh_glance()
         self._refresh_recent()
-        self._draw_background()
 
     # ---------- 数据 ----------
     def _refresh_glance(self):
@@ -161,41 +150,4 @@ class OverviewPage(tk.Frame):
                      font=("Microsoft YaHei", 10, "bold")).pack(side="right")
 
     # ---------- 背景 ----------
-    def _on_resize(self, _event):
-        if self._bg_job:
-            self.after_cancel(self._bg_job)
-        self._bg_job = self.after(300, self._draw_background)
-
-    def _bg_source(self) -> Path | None:
-        """用户自定义背景优先,否则用内置默认壁纸。"""
-        custom = self.app.db.get_setting("background_image")
-        if custom and Path(custom).exists():
-            return Path(custom)
-        built_in = Path(__file__).resolve().parent.parent / "assets" \
-            / "default_bg.png"
-        if built_in.exists():
-            return built_in
-        return None
-
-    def _draw_background(self):
-        t = self.app.theme
-        source = self._bg_source()
-        if source and self.app.has_pil:
-            try:
-                from PIL import Image, ImageTk
-
-                img = Image.open(source).convert("RGB")
-                w = max(self.winfo_width(), 900)
-                h = max(self.winfo_height(), 600)
-                ratio = max(w / img.width, h / img.height)
-                img = img.resize((int(img.width * ratio) + 1,
-                                  int(img.height * ratio) + 1))
-                overlay = Image.new("RGB", img.size, "#171923")
-                img = Image.blend(img, overlay, 0.35)  # 压暗保证可读
-                self._bg_photo = ImageTk.PhotoImage(img)
-                self.bg_label.config(image=self._bg_photo)
-                return
-            except Exception:
-                pass
-        self._bg_photo = None
-        self.bg_label.config(image="", bg=t["bg"])
+    # 壁纸渲染与重绘由主窗口统一管理(main_window.App._redraw_wallpaper)

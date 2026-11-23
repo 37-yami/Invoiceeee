@@ -101,12 +101,17 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
         self.minsize(980, 620)
         self.configure(bg=T["dark"])
         self.report_callback_exception = self._report_callback_exception
+        self._wallpaper_labels: list[tk.Label] = []
+        self._wallpaper_photo = None
+        self._wallpaper_job = None
+        self.bind("<Configure>", self._on_resize_wallpaper)
 
         self._build_header()
         self._build_body()
 
         self.show_page("overview")
         self.after(200, self._poll)
+        self.after(80, self._redraw_wallpaper)  # 首帧绘制壁纸
         if HAS_DND:
             self.drop_target_register(DND_FILES)
             self.dnd_bind("<<Drop>>", self._on_drop)
@@ -166,7 +171,6 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
     def _build_body(self):
         body = tk.Frame(self, bg=T["dark"])
         body.pack(fill="both", expand=True)
-
         # 左侧导航
         nav = tk.Frame(body, bg=T["dark"], width=176)
         nav.pack(side="left", fill="y")
@@ -248,7 +252,53 @@ class App(TkinterDnD.Tk if HAS_DND else tk.Tk):
         self.importer = Importer(self.ws, self.db)
 
     def refresh_background(self):
-        self.pages["overview"].show()
+        self._redraw_wallpaper()
+
+    # ---------- 全局壁纸(所有页面共享) ----------
+    def attach_wallpaper(self, page) -> tk.Label:
+        """给页面垫一层壁纸标签(必须在该页创建其他子元素之前调用)。"""
+        label = tk.Label(page, bg=T["bg"])
+        label.place(x=0, y=0, relwidth=1, relheight=1)
+        self._wallpaper_labels.append(label)
+        return label
+
+    def _on_resize_wallpaper(self, _event):
+        if self._wallpaper_job:
+            self.after_cancel(self._wallpaper_job)
+        self._wallpaper_job = self.after(300, self._redraw_wallpaper)
+
+    def _wallpaper_source(self) -> Path | None:
+        custom = self.db.get_setting("background_image")
+        if custom and Path(custom).exists():
+            return Path(custom)
+        built_in = APP_DIR / "assets" / "default_bg.png"
+        return built_in if built_in.exists() else None
+
+    def _redraw_wallpaper(self):
+        source = self._wallpaper_source()
+        if not (source and self.has_pil):
+            self._wallpaper_photo = None
+            for label in self._wallpaper_labels:
+                label.config(image="", bg=T["bg"])
+            return
+        try:
+            from PIL import Image, ImageTk
+
+            img = Image.open(source).convert("RGB")
+            w = max(self.winfo_width(), 900)
+            h = max(self.winfo_height(), 600)
+            ratio = max(w / img.width, h / img.height)
+            img = img.resize((int(img.width * ratio) + 1,
+                              int(img.height * ratio) + 1))
+            overlay = Image.new("RGB", img.size, "#171923")
+            img = Image.blend(img, overlay, 0.35)  # 压暗保证可读
+            self._wallpaper_photo = ImageTk.PhotoImage(img)
+            for label in self._wallpaper_labels:
+                label.config(image=self._wallpaper_photo)
+        except Exception:
+            self._wallpaper_photo = None
+            for label in self._wallpaper_labels:
+                label.config(image="", bg=T["bg"])
 
     # ---------- 导入 ----------
     def add_files(self):

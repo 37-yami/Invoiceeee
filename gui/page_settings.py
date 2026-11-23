@@ -14,6 +14,7 @@ class SettingsPage(tk.Frame):
         self.app = app
         t = self.app.theme
         self.configure(bg=t["bg"])
+        self.app.attach_wallpaper(self)  # 壁纸底层,必须最先创建
 
         card = tk.Frame(self, bg=t["card"], highlightthickness=1,
                         highlightbackground=t["border"])

@@ -34,6 +34,7 @@ class StatsPage(tk.Frame):
         super().__init__(parent)
         self.app = app
         self.configure(bg=self.app.theme["bg"])
+        self.app.attach_wallpaper(self)  # 壁纸底层,必须最先创建
         head = tk.Frame(self, bg=self.app.theme["bg"])
         head.pack(fill="x", padx=12, pady=(12, 4))
         tk.Label(head, text="统计(当前筛选结果)", bg=self.app.theme["bg"],

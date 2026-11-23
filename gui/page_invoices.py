@@ -28,6 +28,7 @@ class InvoicesPage(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=app.theme["bg"])
         self.app = app
+        app.attach_wallpaper(self)  # 壁纸底层,必须最先创建
         self._invoices: dict = {}
         self._photo = None
         self._build()
